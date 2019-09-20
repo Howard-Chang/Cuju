@@ -29,6 +29,7 @@ enum CUJU_QEMU_VM_TRANSACTION_STATE {
     CUJU_QEMU_VM_TRANSACTION_NOCOPY,
     CUJU_QEMU_VM_TRANSACTION_DEV_HEADER,
     CUJU_QEMU_VM_TRANSACTION_DEV_STATES,
+    CUJU_QEMU_VM_TRANSACTION_CANCEL1
 };
 
 enum CUJU_FT_MODE {
@@ -135,7 +136,8 @@ typedef struct CujuQEMUFileFtTrans
     int ram_fd_recved;  // reset to -1
     int ram_fd_expect;  // reset to -1
     int ram_fd_ack;     // should ram_fd handler send back ack?
-
+    int dev_fd;
+    bool cancel;
 } CujuQEMUFileFtTrans;
 
 void *cuju_process_incoming_thread(void *opaque);
@@ -144,7 +146,8 @@ extern void *cuju_ft_trans_s1;
 extern void *cuju_ft_trans_s2;
 extern void *cuju_ft_trans_curr;
 extern void *cuju_ft_trans_next;
-
+extern bool migrate_cancel;
+extern CujuQEMUFileFtTrans *last_cuju_ft_trans;
 #define CUJU_FT_TRANS_ERR_UNKNOWN        0x01 /* Unknown error */
 #define CUJU_FT_TRANS_ERR_SEND_HDR       0x02 /* Send header failed */
 #define CUJU_FT_TRANS_ERR_RECV_HDR       0x03 /* Recv header failed */
@@ -157,7 +160,7 @@ extern void *cuju_ft_trans_next;
 void cuju_ft_trans_init(void);
 void cuju_ft_trans_set(int index, void *s);
 void cuju_ft_trans_extend(void *opaque);
-
+int cuju_ft_trans_cancel1(void *opaque, int ram_len, unsigned long serial);
 int cuju_ft_trans_commit1(void *opaque, int ram_len, unsigned long serial);
 int cuju_ft_trans_flush_output(void *opaque);
 int cuju_ft_trans_begin(void *opaque);
@@ -190,7 +193,9 @@ QEMUFile *cuju_qemu_fopen_ops_ft_trans(void *opaque,
                                   CujuFtTransCloseFunc *close,
                                   bool is_sender,
                                   int ram_fd,
-                                  int ram_hdr_fd);
+                                  int ram_hdr_fd,
+                                  int dev_fd
+                                  );
 extern int cuju_is_load;
 extern QemuMutex cuju_load_mutex;
 extern QemuCond cuju_load_cond;

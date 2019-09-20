@@ -83,7 +83,6 @@
 #include <linux/slab.h>
 #include <linux/sort.h>
 #include <linux/bsearch.h>
-
 #include <asm/processor.h>
 #include <asm/io.h>
 #include <asm/ioctl.h>
@@ -3205,6 +3204,12 @@ static long kvm_vm_ioctl(struct file *filp,
             goto out;
         break;
     }
+	case KVM_SHM_DISABLE: {
+        r = kvm_shm_disable(kvm);
+        if (r)
+            goto out;
+        break;
+    }
     case KVM_SHM_START_TIMER: {
       r = 0;
       kvm_shm_start_timer(kvm->vcpus[0]);
@@ -3342,6 +3347,12 @@ static long kvm_vm_ioctl(struct file *filp,
                                   req.max_conn);
     break;
   }
+  case KVMFT_RESTORE_PREVIOUS_EPOCH: {
+    printk ( KERN_INFO "in kvmft before calling previous epoch \n",__func__);
+    r = -EFAULT;
+    r = kvmft_restore_previous_epoch(kvm,argp);
+    break;
+  }
 #ifdef KVM_COALESCED_MMIO_PAGE_OFFSET
 	case KVM_REGISTER_COALESCED_MMIO: {
 		struct kvm_coalesced_mmio_zone zone;
@@ -3476,6 +3487,11 @@ out_free_irq_routing:
         if (copy_from_user(&moff, argp, sizeof moff))
             goto out;
         r = kvmft_fire_timer(kvm->vcpus[0], (int)moff);
+        break;
+    }
+	case KVM_SHM_CANCEL_TIMER: {
+        r = 0;
+        kvm_shm_timer_cancel(kvm->vcpus[0]);
         break;
     }
     case KVMFT_SET_MASTER_SLAVE_SOCKETS: {

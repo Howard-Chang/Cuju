@@ -36,11 +36,11 @@
 
 static QemuMutex *cuju_buf_desc_mutex = NULL;
 static QemuCond *cuju_buf_desc_cond = NULL;
-
+//static bool migrate_cancel = false;
 int cuju_is_load = 0;
 QemuMutex cuju_load_mutex;
 QemuCond cuju_load_cond;
-
+//bool migrate_cancel ;
 extern void kvm_shmem_load_ram(void *buf, int size);
 extern void kvm_shmem_load_ram_with_hdr(void *buf, int size, void *hdr_buf, int hdr_size);
 
@@ -63,7 +63,11 @@ static inline double time_in_double(void)
 static CujuQEMUFileFtTrans **cuju_ft_trans;
 static int cuju_ft_trans_count;
 static int cuju_ft_trans_current_index;
-
+/*void qmp_migrate_cancel(Error **errp)
+{
+    migrate_cancel = true;
+    //migrate_fd_cancel(migrate_get_current());
+}*/
 static CujuQEMUFileFtTrans *cuju_ft_trans_get_next(CujuQEMUFileFtTrans *s)
 {
     int index = s->index;
@@ -471,7 +475,11 @@ static int cuju_ft_trans_recv_header(CujuQEMUFileFtTrans *s)
 
         if (s->header.cmd == CUJU_QEMU_VM_TRANSACTION_COMMIT1)
             s->ram_buf_expect = s->header.payload_len;
-
+        if (s->header.cmd == CUJU_QEMU_VM_TRANSACTION_CANCEL1)
+        {
+            printf("recv cancel\n");
+            s->cancel = true;
+        }
         if (s->header.magic != CUJU_FT_HDR_MAGIC) {
             error_report("recv header magic wrong: %x\n", s->header.magic);
             s->has_error = CUJU_FT_TRANS_ERR_RECV_HDR;
@@ -595,7 +603,7 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
     printf("s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     if(s->ft_serial != ft_serial)
         printf("not equal!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-    while (s->ft_serial == ft_serial && cuju_ft_trans_load_ready(s)) {
+    //while (s->ft_serial == ft_serial && cuju_ft_trans_load_ready(s)) {
         
         ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
         printf("send ack  %lf\n",time_in_double());
@@ -609,7 +617,7 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
 #ifdef ft_debug_mode_enable
         printf("%s try next %p->ft_serial = %ld/%ld ready %d\n", __func__, s, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
 #endif
-    }
+    //}
 out:
 printf("out:  s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     qemu_mutex_lock(&cuju_load_mutex);
@@ -794,7 +802,7 @@ static int cuju_ft_trans_close(void *opaque)
     if (s->is_sender)
         g_free(s->buf);
 
-
+    
     if (!s->is_sender) {
         qemu_mutex_lock(&cuju_load_mutex);
         while (cuju_is_load == 1)
@@ -825,12 +833,16 @@ static int cuju_ft_trans_close(void *opaque)
 			error_report_err(local_err);
 			exit(EXIT_FAILURE);
 		}
-
+        /*if(!migrate_cancel)
+        {*/
         qemu_announce_self();
 
         cuju_ft_mode = CUJU_FT_TRANSACTION_HANDOVER;
+        
         vm_start();
         printf("%s vm_started.\n", __func__);
+        //migrate_cancel =false;
+        //}
     }
 
     return ret;
@@ -1010,7 +1022,10 @@ clear:
 
 void cuju_ft_trans_read_pages(void *opaque)
 {
+    
     CujuQEMUFileFtTrans *s = opaque;
+    /*if(migrate_cancel)
+        goto clear;*/
     int ret;
     static long cnt=-1;
     const int bunk = 4096;
@@ -1119,7 +1134,29 @@ int cuju_ft_trans_flush_output(void *opaque)
 out:
     return ret;
 }
+int cuju_ft_trans_cancel1(void *opaque, int ram_len, unsigned long serial)
+{
+    CujuQEMUFileFtTrans *s = opaque;
+    int ret;
 
+    assert(s->is_sender);
+
+    assert(s->last_cmd == CUJU_QEMU_VM_TRANSACTION_BEGIN);
+    s->last_cmd = CUJU_QEMU_VM_TRANSACTION_CANCEL1;
+
+    s->ft_serial = serial;
+    printf("send cancel1\n");
+    ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_CANCEL1, ram_len);
+    if (ret < 0) {
+        printf("%s send cancel1 failed %d\n", __func__, ret);
+        goto out;
+    }
+
+    s->state = CUJU_QEMU_VM_TRANSACTION_CONTINUE;
+
+out:
+    return ret;
+}
 int cuju_ft_trans_commit1(void *opaque, int ram_len, unsigned long serial)
 {
     CujuQEMUFileFtTrans *s = opaque;
@@ -1209,7 +1246,9 @@ QEMUFile *cuju_qemu_fopen_ops_ft_trans(void *opaque,
                                   CujuFtTransCloseFunc *close,
                                   bool is_sender,
                                   int ram_fd,
-                                  int ram_hdr_fd)
+                                  int ram_hdr_fd,
+                                  int dev_fd
+                                  )
 {
     CujuQEMUFileFtTrans *s;
 
@@ -1227,9 +1266,9 @@ QEMUFile *cuju_qemu_fopen_ops_ft_trans(void *opaque,
     s->seq = 0;
     // better to explicitly give a value
     s->state = CUJU_QEMU_VM_TRANSACTION_INIT;
-
+    s->cancel = false;
     s->ram_hdr_fd = ram_hdr_fd;
-
+    s->dev_fd = dev_fd;
     s->ram_fd = ram_fd;
     s->ram_fd_expect = -1;
     s->ram_fd_recved = -1;

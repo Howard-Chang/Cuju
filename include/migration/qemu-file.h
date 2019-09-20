@@ -173,6 +173,7 @@ int qemu_ft_trans_commit(QEMUFile *f);
 int qemu_ft_trans_cancel(QEMUFile *f);
 int qemu_ft_trans_is_sender(QEMUFile *f);
 int qemu_ft_trans_recv_ack1(QEMUFile *f);
+int qemu_ft_trans_cancel1(QEMUFile *f, int ram_len, unsigned long serial);
 int qemu_ft_trans_commit1(QEMUFile *f, int ram_len, unsigned long serial);
 int qemu_ft_trans_recv_ack(QEMUFile *f);
 int qemu_ft_trans_send_begin(QEMUFile *f);

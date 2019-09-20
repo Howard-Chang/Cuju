@@ -928,6 +928,7 @@ STEXI
 @findex migrate_cancel
 Cancel the current VM migration.
 
+
 ETEXI
 
     {

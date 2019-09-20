@@ -66,7 +66,7 @@
 #define ARP_OP_REQUEST_REV 0x3
 
 const unsigned int postcopy_ram_discard_version = 0;
-
+//static bool migrate_cancel = false;
 static bool skip_section_footers;
 
 static struct mig_cmd_args {
@@ -182,6 +182,7 @@ static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     ssize_t len;
 
     do {
+        printf("s->fd:%d\n",s->fd);
         len = qemu_recv(s->fd, buf, size, 0);
     } while (len == -1 && socket_error() == EINTR);
 
@@ -210,7 +211,11 @@ int qemu_ft_trans_send_begin(QEMUFile *f)
         f->last_error = ret;
     return ret;
 }
-
+/*void qmp_migrate_cancel(Error **errp)
+{
+    migrate_cancel = true;
+    //migrate_fd_cancel(migrate_get_current());
+}*/
 int qemu_ft_trans_recv_ack(QEMUFile *f)
 {
     int ret;
@@ -240,7 +245,16 @@ int qemu_ft_trans_recv_ack1(QEMUFile *f)
         f->last_error = ret;
     return ret;
 }
-
+int qemu_ft_trans_cancel1(QEMUFile *f, int ram_len, unsigned long serial)
+{
+    int ret;
+    
+    ret = cuju_ft_trans_cancel1(f->opaque, ram_len, serial);
+    printf("send cancel  %d\n",ret);
+    if (ret < 0)
+        f->last_error = ret;
+    return ret;
+}
 int qemu_ft_trans_commit1(QEMUFile *f, int ram_len, unsigned long serial)
 {
     int ret;
@@ -263,11 +277,6 @@ int qemu_ft_trans_commit(QEMUFile *f)
     return ret;
 }
 
-int qemu_ft_trans_cancel(QEMUFile *f)
-{
-    f->last_error = cuju_ft_trans_cancel(f->opaque);
-    return f->last_error;
-}
 
 static int socket_trans_get_buffer(void *opaque, uint8_t *buf, int64_t pos, size_t size)
 {   
@@ -349,7 +358,7 @@ static void socket_trans_resume(void *opaque, int running, RunState reason)
     qemu_fclose(s->file);
 }
 
-QEMUFile *cuju_qemu_fopen_ft_trans(int s_fd, int c_fd, int ram_fd, int ram_hdr_fd)
+QEMUFile *cuju_qemu_fopen_ft_trans(int s_fd, int c_fd, int ram_fd, int ram_hdr_fd )
 {
     QEMUFileSocketTrans *t = g_malloc0(sizeof(QEMUFileSocketTrans));
     QEMUFileSocket *s = g_malloc0(sizeof(QEMUFileSocket));
@@ -363,7 +372,7 @@ QEMUFile *cuju_qemu_fopen_ft_trans(int s_fd, int c_fd, int ram_fd, int ram_hdr_f
                                         socket_trans_get_buffer, NULL,
                                         socket_trans_get_ready,
                                         migrate_fd_wait_for_unfreeze,
-                                        socket_trans_close, 0, ram_fd, ram_hdr_fd);
+                                        socket_trans_close, 0, ram_fd, ram_hdr_fd, c_fd);
     // TODO uncomment, otherwise will crash
     // moved to outside
     qemu_set_nonblock(s->fd);

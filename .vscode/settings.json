@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "main-loop.h": "c",
-        "block.h": "c"
+        "block.h": "c",
+        "qemu-file.h": "c",
+        "kvm_shmem.h": "c",
+        "cpus.h": "c",
+        "virtio-blk.h": "c"
     }
 }

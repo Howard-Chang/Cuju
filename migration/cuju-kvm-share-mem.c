@@ -289,13 +289,16 @@ void kvm_shmem_stop_ft(void)
 
     //kvm_start_log_share_dirty_pages();
 
-    ret = kvm_vm_ioctl(kvm_state, KVM_SHM_ENABLE);
+    ret = kvm_vm_ioctl(kvm_state, KVM_SHM_DISABLE);
     if (ret) {
         fprintf(stderr, "%s failed: %d\n", __func__, ret);
         exit(ret);
     }
  
     ft_started = 0;
+}
+void kvm_shmem_cancel_timer(void){
+    kvm_vm_ioctl(kvm_state, KVM_SHM_CANCEL_TIMER);
 }
 int kvmft_started(void)
 {
@@ -467,7 +470,11 @@ int kvm_shmem_flip_sharing(int cur_index)
 
     return ret;
 }
-
+void restore_previous_epoch(void *opaque)
+{
+    MigrationState *s = opaque;
+    kvm_vm_ioctl(kvm_state,KVMFT_RESTORE_PREVIOUS_EPOCH,(void *)s);
+}
 void kvm_shmem_start_timer(void)
 {
     kvm_vm_ioctl(kvm_state, KVM_SHM_START_TIMER);
@@ -875,7 +882,7 @@ void kvm_shmem_sortup_trackable(void)
 {
 	int i, j;
 	struct trackable_ptr *tptr, tmp;
-
+    
 	j = 0;
     if(trackable_number == 0){
         for (i = 0; i < TRACKABLE_ARRAY_LEN; ++i) {
@@ -892,6 +899,7 @@ void kvm_shmem_sortup_trackable(void)
     for (i = 0; i < trackable_number; i++) {
         for (j = i + 1; j < trackable_number; j++) {
             if (trackable_ptrs[i].ptr > trackable_ptrs[j].ptr) {
+                //printf("trackable_ptrs[%d].ptr:%p\n",i,trackable_ptrs[i].ptr);
                 tmp = trackable_ptrs[i];
                 trackable_ptrs[i] = trackable_ptrs[j];
                 trackable_ptrs[j] = tmp;
@@ -1107,11 +1115,10 @@ static void* trans_ram_conn_thread_func(void *opaque)
             qemu_mutex_unlock(&d->mutex);
             continue;
         }
-
         ret = dirty_pages_userspace_transfer(s->ram_fds[d->index]);
         assert(ret >= 0);
         s->ram_len += ret;
-
+        printf("ram_len: %d\n",ret);
         ret = kvm_start_kernel_transfer(s->cur_off, s->ram_fds[d->index], d->index, ft_ram_conn_count);
 
         assert(ret >= 0);
@@ -1120,7 +1127,7 @@ static void* trans_ram_conn_thread_func(void *opaque)
         s->ram_len += ret;
 
         if (d->index == 0) {
-            printf("ram_len: %d\n",ret);
+            printf("final ram_len: %d\n",ret);
 #ifdef CONFIG_KVMFT_USERSPACE_TRANSFER
             g_free(s->dirty_pfns);
             s->dirty_pfns = NULL;
@@ -1136,7 +1143,7 @@ static void* trans_ram_conn_thread_func(void *opaque)
 void trans_ram_init(void)
 {
     int i;
-
+    printf("trans_ram_init\n");
     for (i = 0; i < ft_ram_conn_count; i++) {
         struct trans_ram_conn_descriptor *d = &trans_ram_conn_descriptors[i];
         d->index = i;
@@ -1189,6 +1196,7 @@ void kvm_shmem_send_dirty_kernel(MigrationState *s)
 	put_off = kvm_vm_ioctl(kvm_state, KVM_GET_PUT_OFF, &cur_off);
 	//TODO kvmft_assert_ram_hash_and_dlist function should be moved to kernel space
     //kvmft_assert_ram_hash_and_dlist(dlist->pages, dlist->put_off);
+    printf("put_off:%d\n",put_off);
     s->dirty_pfns_len = put_off;
 
 #ifdef CONFIG_KVMFT_USERSPACE_TRANSFER

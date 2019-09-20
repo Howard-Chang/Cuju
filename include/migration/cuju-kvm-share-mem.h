@@ -37,6 +37,7 @@ void kvm_shmem_trans_ram_bh(void *opaque);
 
 void kvm_shmem_start_ft(void);
 void kvm_shmem_stop_ft(void);  //add
+void kvm_shmem_cancel_timer(void);
 int kvmft_started(void);
 int kvmft_write_protect_dirty_pages(int cur_index);
 int kvm_shm_clear_dirty_bitmap(int cur_index);
@@ -47,7 +48,7 @@ int kvm_shmem_mark_page_dirty(void *ptr, unsigned long gfn);
 void kvm_shmem_send_dirty_kernel(MigrationState *s);
 void kvm_shmem_start_timer(void);
 int kvm_shmem_flip_sharing(int cur_index);
-
+void restore_previous_epoch(void *opaque);
 int kvmft_fire_timer(int moff);
 void kvmft_reset_put_off(MigrationState *s);
 void kvmft_assert_ram_hash_and_dlist(unsigned int *gfns, int size);

@@ -1261,11 +1261,15 @@ void hmp_snapshot_delete_blkdev_internal(Monitor *mon, const QDict *qdict)
                                                true, name, &err);
     hmp_handle_error(mon, &err);
 }
-
+extern void qmp_migrate_pause(void);
 void hmp_migrate_cancel(Monitor *mon, const QDict *qdict)
 {
     qmp_migrate_cancel(NULL);
 }
+/*void hmp_cuju_migrate_cancel(Monitor *mon, const QDict *qdict)
+{
+    qmp_cuju_migrate_cancel(void);
+}*/
 
 void hmp_migrate_incoming(Monitor *mon, const QDict *qdict)
 {

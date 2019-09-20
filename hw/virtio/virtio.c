@@ -1974,8 +1974,8 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         if (vdev->vq[i].vring.desc) {
             uint16_t nheads;
             nheads = vring_avail_idx(&vdev->vq[i]) - vdev->vq[i].last_avail_idx;
-            printf("vring_avail_idx(&vdev->vq[i]):%d \n",vring_avail_idx(&vdev->vq[i]));
-            printf("nheads: %d  vdev->vq[i].last_avail_idx:%d vdev->vq[i].vring.num:%d\n",nheads,vdev->vq[i].last_avail_idx,vdev->vq[i].vring.num);
+            //printf("vring_avail_idx(&vdev->vq[i]):%d \n",vring_avail_idx(&vdev->vq[i]));
+            //printf("nheads: %d  vdev->vq[i].last_avail_idx:%d vdev->vq[i].vring.num:%d\n",nheads,vdev->vq[i].last_avail_idx,vdev->vq[i].vring.num);
             /* Check it isn't doing strange things with descriptor numbers. */
             if (nheads > vdev->vq[i].vring.num) {
                 error_report("VQ %d size 0x%x Guest index 0x%x "

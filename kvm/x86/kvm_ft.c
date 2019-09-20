@@ -476,7 +476,7 @@ static int confirm_prev_dirty_bitmap_clear(struct kvm *kvm, int cur_index)
 //                return -EINVAL;
 			}
 		}*/
-
+        printk("cur_index:%d  dirty_bitmap:%ld\n",cur_index,*dirty_bitmap);
         if(*dirty_bitmap != 0)
             printk("%s is still set.\n", __func__);
 	}
@@ -760,7 +760,12 @@ int kvm_shm_enable(struct kvm *kvm)
     printk("%s shm_enabled %d\n", __func__, ctx->shm_enabled);
     return 0;
 }
-
+int kvm_shm_disable(struct kvm *kvm)
+{
+    struct kvmft_context *ctx = &kvm->ft_context;
+    ctx->shm_enabled = 0;
+    return 0;
+}
 static int wait_for_other_mark(struct kvm_memory_slot *memslot,
                            int cur_index,
                            unsigned long gfn_off,
@@ -1225,6 +1230,57 @@ int kvm_shm_report_trackable(struct kvm *kvm,
 err_out:
 	kvm_shm_free_trackable(kvm);
 	return ret;
+}
+
+static int restore_one_epoch(struct kvm * kvm, int index){
+
+
+    struct kvmft_context *ctx = &kvm->ft_context;
+    void **shared_pages_k;
+    struct kvmft_dirty_list *dlist;
+    int i,count;
+    dlist = ctx->page_nums_snapshot_k[index];
+    count = dlist->put_off;
+    shared_pages_k = ctx->shared_pages_snapshot_k[index];
+
+    printk("in function %s , applying patch for index = %d,count = %d \n",__func__,index,count);
+     for (i = 0; i < count; i++) {
+        gfn_t gfn = dlist->pages[i];
+        void * hva = (void * ) gfn_to_hva(kvm,gfn);
+        void * orig = (void *)((unsigned long)hva & ~0x0FFFULL);
+        memcpy_page_ermsb(orig,shared_pages_k[i]);
+        //printk("gfn = %d\n",gfn);
+        /*if (!last_memslot || !in_memslot(last_memslot, gfn))
+            last_memslot = gfn_to_memslot(kvm, gfn);
+        clear_bit(gfn - last_memslot->base_gfn, last_memslot->lock_dirty_bitmap);
+        kvm_mmu_write_protect_single_fast(kvm, last_memslot, gfn - last_memslot->base_gfn);*/
+    }
+
+    printk("in function %s , applying patch for index = %d done \n",__func__,index);
+    return count;
+
+}
+
+
+int kvmft_restore_previous_epoch(struct kvm* kvm,void * __user bitmap){
+	struct kvm_memory_slot *last_memslot = NULL;
+    struct kvmft_context *ctx = &kvm->ft_context;
+    int count , cur_index , prev_index;
+
+    cur_index = ctx->cur_index;
+    prev_index = !(ctx->cur_index);
+
+
+    spin_lock(&kvm->mmu_lock);
+
+    count = restore_one_epoch(kvm,cur_index);
+    //count += restore_one_epoch(kvm,prev_index);
+    printk("count:%d\n",count);
+    if (count > 0)
+        kvm_flush_remote_tlbs(kvm);
+
+    spin_unlock(&kvm->mmu_lock);
+    return 0;
 }
 
 int kvm_shm_collect_trackable_dirty(struct kvm *kvm,
@@ -2687,7 +2743,7 @@ static int diff_and_transfer_all(struct kvm *kvm, int trans_index, int max_conn)
     struct kvmft_dirty_list *dlist = ctx->page_nums_snapshot_k[trans_index];
     int count, i, ret = 0, len = 0;
     int run_serial = info->run_serial;
-
+    
 #ifdef ENABLE_PRE_DIFF
     int skipped = 0;
 #endif
@@ -2702,7 +2758,7 @@ static int diff_and_transfer_all(struct kvm *kvm, int trans_index, int max_conn)
 
     if (dlist->put_off == 0)
         return 0;
-
+    //
     // wake up other diff_and_tran_kthread
     for (i = 1; i < info->nsocks; ++i)
         wake_up(&info->events[i]);

@@ -65,7 +65,7 @@
 #endif
 
 //#define DEBUG_SUBPAGE
-
+#define ft_debug_mode_enable
 #if !defined(CONFIG_USER_ONLY)
 /* ram_list is read under rcu_read_lock()/rcu_read_unlock().  Writes
  * are protected by the ramlist lock.
