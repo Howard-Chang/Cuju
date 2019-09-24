@@ -348,7 +348,7 @@ int cuju_ft_trans_send_header(CujuQEMUFileFtTrans *s,
     hdr->payload_len = payload_len;
     hdr->seq = hdr_idx;
     hdr->serial = s->ft_serial;
-    printf("payload_len:%d  s->ft_serial%ld  state:%d   time:%lf\n",payload_len,s->ft_serial,state,time_in_double());
+    //printf("payload_len:%d  s->ft_serial%ld  state:%d   time:%lf\n",payload_len,s->ft_serial,state,time_in_double());
     ret = cuju_ft_trans_put(s, hdr, sizeof(*hdr));
     if (ret < 0) {
         error_report("send header failed\n");
@@ -425,7 +425,7 @@ static int cuju_ft_trans_fill_buffer(void *opaque, void *buf, int size)
 
     while (!s->freeze_output && offset < size) {
         len = s->get_buffer(s->opaque, (uint8_t *)buf + offset,0, size - offset);
-        printf("In fill buffer len: %ld\n",len);
+        //printf("In fill buffer len: %ld\n",len);
         if (len == -EAGAIN || len == -EWOULDBLOCK) {
             trace_cuju_ft_trans_freeze_input();
             s->freeze_input = 1;
@@ -582,14 +582,14 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
     int ret = 0;
     //static int enter=1;
     static unsigned long ft_serial = 1;
-    printf("cuju_ft_trans_try_load time:%lf\n",time_in_double());
+    //printf("cuju_ft_trans_try_load time:%lf\n",time_in_double());
     qemu_mutex_lock(&cuju_load_mutex);
     while (cuju_is_load == 1)
         qemu_cond_wait(&cuju_load_cond, &cuju_load_mutex);
     cuju_is_load = 1;
     qemu_mutex_unlock(&cuju_load_mutex);
     //printf("s->ft_serial:%ld  ft_serial:%ld   %d\n",s->ft_serial , ft_serial,cuju_ft_trans_load_ready(s));
-    printf("ram_buf_put_off:%d  ram_hdr_buf_put_off:%d   ram_buf_expect:%d\n",s->ram_buf_put_off,s->ram_hdr_buf_put_off,s->ram_buf_expect);
+    //printf("ram_buf_put_off:%d  ram_hdr_buf_put_off:%d   ram_buf_expect:%d\n",s->ram_buf_put_off,s->ram_hdr_buf_put_off,s->ram_buf_expect);
 #ifdef ft_debug_mode_enable
     if (cuju_ft_trans_load_ready(s)) {
         printf("%s %p->ft_serial = %ld/%ld ready %d\n", __func__, s, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
@@ -600,13 +600,13 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
         ft_serial = s->ft_serial ;
         enter=0;
     }*/
-    printf("s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
+    //printf("s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     if(s->ft_serial != ft_serial)
         printf("not equal!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
     //while (s->ft_serial == ft_serial && cuju_ft_trans_load_ready(s)) {
         
         ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
-        printf("send ack  %lf\n",time_in_double());
+        //printf("send ack  %lf\n",time_in_double());
         if (ret < 0) {
             printf("%s send ack failed.\n", __func__);
             goto out;
@@ -619,7 +619,7 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
 #endif
     //}
 out:
-printf("out:  s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
+//printf("out:  s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     qemu_mutex_lock(&cuju_load_mutex);
     cuju_is_load = 0;
     qemu_cond_broadcast(&cuju_load_cond);
@@ -1036,16 +1036,16 @@ void cuju_ft_trans_read_pages(void *opaque)
             s->ram_buf_size += bunk;
             s->ram_buf = g_realloc(s->ram_buf, s->ram_buf_size);
         }
-        printf("cnt:%ld  read_pages2 time:%lf\n",cnt,time_in_double());
+        //printf("cnt:%ld  read_pages2 time:%lf\n",cnt,time_in_double());
         ret = recv(s->ram_fd, s->ram_buf + s->ram_buf_put_off, bunk, 0);
         if (ret == 0) {
             printf("%s: disconn\n", __func__);
             goto clear;
         }
         if (ret < 0) {
-            printf("%s recv %d err.\n", __func__, s->ram_fd);
-            printf("cuju_ft_trans_read_pages s:%p\n", s);
-            printf("s->ram_buf_put_off %d\n", s->ram_buf_put_off);
+            //printf("%s recv %d err.\n", __func__, s->ram_fd);
+            //printf("cuju_ft_trans_read_pages s:%p\n", s);
+            //printf("s->ram_buf_put_off %d\n", s->ram_buf_put_off);
             if (errno == EINTR)
                 continue;
             if (errno == EAGAIN)
@@ -1055,7 +1055,7 @@ void cuju_ft_trans_read_pages(void *opaque)
             goto clear;
         }
         cuju_socket_set_quickack(s->ram_fd);
-        printf("s->ram_fd:%d\n",s->ram_fd);
+        //printf("s->ram_fd:%d\n",s->ram_fd);
         s->ram_buf_put_off += ret;
         if (cuju_ft_trans_load_ready(s)) {
             printf("FUCKKKKKKKKKKKKKKKKKKKKKKKKKK\n");
@@ -1139,12 +1139,12 @@ int cuju_ft_trans_cancel1(void *opaque, int ram_len, unsigned long serial)
     CujuQEMUFileFtTrans *s = opaque;
     int ret;
 
-    assert(s->is_sender);
+    //assert(s->is_sender);
 
-    assert(s->last_cmd == CUJU_QEMU_VM_TRANSACTION_BEGIN);
+    //assert(s->last_cmd == CUJU_QEMU_VM_TRANSACTION_BEGIN);
     s->last_cmd = CUJU_QEMU_VM_TRANSACTION_CANCEL1;
 
-    s->ft_serial = serial;
+    //s->ft_serial = serial;
     printf("send cancel1\n");
     ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_CANCEL1, ram_len);
     if (ret < 0) {
@@ -1152,7 +1152,7 @@ int cuju_ft_trans_cancel1(void *opaque, int ram_len, unsigned long serial)
         goto out;
     }
 
-    s->state = CUJU_QEMU_VM_TRANSACTION_CONTINUE;
+    //s->state = CUJU_QEMU_VM_TRANSACTION_CONTINUE;
 
 out:
     return ret;
@@ -1168,7 +1168,7 @@ int cuju_ft_trans_commit1(void *opaque, int ram_len, unsigned long serial)
     s->last_cmd = CUJU_QEMU_VM_TRANSACTION_COMMIT1;
 
     s->ft_serial = serial;
-    printf("send commit1\n");
+    //printf("send commit1\n");
     ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_COMMIT1, ram_len);
     if (ret < 0) {
         printf("%s send COMMIT1 failed %d\n", __func__, ret);

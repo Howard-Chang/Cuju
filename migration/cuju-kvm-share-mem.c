@@ -1032,7 +1032,7 @@ static int kvm_start_kernel_transfer(int trans_index, int ram_fd, int conn_index
     int ret;
     int64_t start, end, tmp = 0;
     MigrationState *s = migrate_by_index(trans_index);
-    printf("ram_fd:%d  conn_index:%d\n",ram_fd,conn_index);
+    //printf("ram_fd:%d  conn_index:%d\n",ram_fd,conn_index);
     start = time_in_us();
     s->transfer_real_start_time = time_in_double();
 
@@ -1118,7 +1118,7 @@ static void* trans_ram_conn_thread_func(void *opaque)
         ret = dirty_pages_userspace_transfer(s->ram_fds[d->index]);
         assert(ret >= 0);
         s->ram_len += ret;
-        printf("ram_len: %d\n",ret);
+        //printf("ram_len: %d\n",ret);
         ret = kvm_start_kernel_transfer(s->cur_off, s->ram_fds[d->index], d->index, ft_ram_conn_count);
 
         assert(ret >= 0);
@@ -1127,7 +1127,7 @@ static void* trans_ram_conn_thread_func(void *opaque)
         s->ram_len += ret;
 
         if (d->index == 0) {
-            printf("final ram_len: %d\n",ret);
+            //printf("final ram_len: %d\n",ret);
 #ifdef CONFIG_KVMFT_USERSPACE_TRANSFER
             g_free(s->dirty_pfns);
             s->dirty_pfns = NULL;
@@ -1196,7 +1196,7 @@ void kvm_shmem_send_dirty_kernel(MigrationState *s)
 	put_off = kvm_vm_ioctl(kvm_state, KVM_GET_PUT_OFF, &cur_off);
 	//TODO kvmft_assert_ram_hash_and_dlist function should be moved to kernel space
     //kvmft_assert_ram_hash_and_dlist(dlist->pages, dlist->put_off);
-    printf("put_off:%d\n",put_off);
+    //printf("put_off:%d\n",put_off);
     s->dirty_pfns_len = put_off;
 
 #ifdef CONFIG_KVMFT_USERSPACE_TRANSFER
