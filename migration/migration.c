@@ -44,7 +44,6 @@
 #include "qemu/main-loop.h"
 #include "migration/event-tap.h"
 #include "hw/virtio/virtio-blk.h"
-#include "hw/virtio/virtio-blk.h"
 double flush_start=0.0;
 //#define DEBUG_MIGRATION
 //#define ft_debug_mode_enable
@@ -52,6 +51,7 @@ static unsigned long trans_serial = 0;
 static unsigned long run_serial = 0;
 bool migrate_cancel = false;
 bool migration_paused = false;
+bool force_flush = false;
 static int enter=1;
 #ifdef DEBUG_MIGRATION
 #define DPRINTF(fmt, ...) \
@@ -1542,10 +1542,10 @@ void qmp_migrate_cancel(Error **errp)
     migrate_cancel = true;
     //migrate_fd_cancel(migrate_get_current());
 }
-/*void qmp_cuju_migrate_cancel(Error **errp)
+void qmp_cuju_migrate_cancel(Error **errp)
 {
     migrate_cancel = true;
-}*/
+}
 void qmp_migrate_set_cache_size(int64_t value, Error **errp)
 {
     MigrationState *s = migrate_get_current();
@@ -2354,7 +2354,11 @@ static int migrate_ft_trans_get_ready(void *opaque)
 
     if (!qemu_ft_trans_is_sender(s->file))
         return 0;
-
+    if(force_flush)
+    {    
+        force_flush= false;
+        goto flush;
+    }
     /* if (migrate_cancel)
     {
         //(CujuQEMUFileFtTrans)s->file-> = CUJU_FT_TRANS_ERR_RECV_HDR;
@@ -2404,6 +2408,7 @@ static int migrate_ft_trans_get_ready(void *opaque)
         //printf("recv ack\n");
         FTPRINTF("%s slave ack1 time %lf\n", __func__,
             time_in_double() - s->transfer_finish_time);
+    flush: 
         flush_start=time_in_double();
         dirty_page_tracking_logs_start_flush_output(s);
         migrate_set_ft_state(s, CUJU_FT_TRANSACTION_FLUSH_OUTPUT);

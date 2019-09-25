@@ -26,7 +26,7 @@
 #define SHARED_DIRTY_WATERMARK  9600
 
 bool cuju_supported(void);
-
+extern bool force_flush;
 void kvmft_pre_init(void);
 void kvm_share_mem_init(unsigned long ram_size);
 

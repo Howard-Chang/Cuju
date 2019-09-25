@@ -1029,7 +1029,7 @@ void cuju_ft_trans_read_pages(void *opaque)
     int ret;
     static long cnt=-1;
     const int bunk = 4096;
-    printf("read_pages1 time:%lf\n",time_in_double());
+    //printf("read_pages1 time:%lf\n",time_in_double());
     cnt++;
     do {
         if (s->ram_buf_size < s->ram_buf_put_off + bunk) {

@@ -5,6 +5,8 @@
         "qemu-file.h": "c",
         "kvm_shmem.h": "c",
         "cpus.h": "c",
-        "virtio-blk.h": "c"
+        "virtio-blk.h": "c",
+        "qapi-event.h": "c",
+        "qmp-commands.h": "c"
     }
 }

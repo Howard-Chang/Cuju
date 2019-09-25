@@ -38,7 +38,7 @@ static unsigned int dirty_pages_userspace_off_committed = 0;
 static unsigned int dirty_pages_userspace[1024];
 static unsigned int dirty_pages_userspace_committed[1024];
 static uint8_t dirty_pages_userspace_copy[1024][4096];
-
+//bool force_flush;
 static void dirty_pages_userspace_add(unsigned long gfn)
 {
     int i, cnt;
@@ -1121,8 +1121,11 @@ static void* trans_ram_conn_thread_func(void *opaque)
         //printf("ram_len: %d\n",ret);
         ret = kvm_start_kernel_transfer(s->cur_off, s->ram_fds[d->index], d->index, ft_ram_conn_count);
 
-        assert(ret >= 0);
-
+        //assert(ret >= 0);
+        if(ret<0)
+        {
+            force_flush=1;
+        }
         // TODO need lock
         s->ram_len += ret;
 
