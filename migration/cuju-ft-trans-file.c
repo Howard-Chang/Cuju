@@ -425,7 +425,11 @@ static int cuju_ft_trans_fill_buffer(void *opaque, void *buf, int size)
 
     while (!s->freeze_output && offset < size) {
         len = s->get_buffer(s->opaque, (uint8_t *)buf + offset,0, size - offset);
-        //printf("In fill buffer len: %ld\n",len);
+        if(s->cancel)
+        {    
+            len = -104;
+            printf("cuju_ft_trans_fill_buffer HH\n");
+        }
         if (len == -EAGAIN || len == -EWOULDBLOCK) {
             trace_cuju_ft_trans_freeze_input();
             s->freeze_input = 1;
