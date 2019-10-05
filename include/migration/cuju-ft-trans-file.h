@@ -29,7 +29,9 @@ enum CUJU_QEMU_VM_TRANSACTION_STATE {
     CUJU_QEMU_VM_TRANSACTION_NOCOPY,
     CUJU_QEMU_VM_TRANSACTION_DEV_HEADER,
     CUJU_QEMU_VM_TRANSACTION_DEV_STATES,
-    CUJU_QEMU_VM_TRANSACTION_CANCEL1
+    CUJU_QEMU_VM_TRANSACTION_CANCEL1,
+    CUJU_QEMU_VM_TRANSACTION_ALIVE,
+    CUJU_QEMU_VM_TRANSACTION_CHECKALIVE
 };
 
 enum CUJU_FT_MODE {
@@ -138,6 +140,7 @@ typedef struct CujuQEMUFileFtTrans
     int ram_fd_ack;     // should ram_fd handler send back ack?
     int dev_fd;
     bool cancel;
+    bool check;
 } CujuQEMUFileFtTrans;
 
 void *cuju_process_incoming_thread(void *opaque);

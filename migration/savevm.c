@@ -2770,6 +2770,7 @@ void qemu_file_get_notify(void *opaque)
     int ret;
 
     ret = f->ops->get_buffer(f->opaque, f->buf, 0, 0);
+    printf("ret:%d\n",ret);
     if (ret < 0)
         f->last_error = ret;
 }

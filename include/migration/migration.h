@@ -213,7 +213,6 @@ struct MigrationState
 
     /* The last error that occurred */
     Error *error;
-
     /* For CUJU */
     int ft_state;
     int64_t bandwidth_limit;

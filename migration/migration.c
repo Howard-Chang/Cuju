@@ -44,15 +44,17 @@
 #include "qemu/main-loop.h"
 #include "migration/event-tap.h"
 #include "hw/virtio/virtio-blk.h"
+#include <sys/time.h>
+#include <signal.h>
 double flush_start=0.0;
 //#define DEBUG_MIGRATION
-#define ft_debug_mode_enable
+//#define ft_debug_mode_enable
 static unsigned long trans_serial = 0;
 static unsigned long run_serial = 0;
+static int Cancelret = -5;
 bool migrate_cancel = false;
 bool migration_paused = false;
-bool force_flush = false;
-static int enter=1;
+static int last_enter = 0;
 #ifdef DEBUG_MIGRATION
 #define DPRINTF(fmt, ...) \
     do { printf("migration: " fmt, ## __VA_ARGS__); } while (0)
@@ -185,6 +187,7 @@ static int migration_states_current;
 static void migrate_fd_get_notify(void *opaque);
 static void cuju_migrate_cancel(void *opaque);
 static void cuju_migrate_cancel_con(void *opaque);
+
 int cuju_get_fd_from_QIOChannel(QIOChannel *ioc);
 
 MigrationState *migrate_by_index(int index)
@@ -226,6 +229,30 @@ static MigrationState *migrate_get_next(MigrationState *s)
     return migration_states[index];
 }
 
+static void my_alarm_handler(int a)
+{
+    MigrationState *s = migrate_get_current();
+    MigrationState *s1 = migrate_get_next(s);
+    CujuQEMUFileFtTrans *f = s->file->opaque;
+    CujuQEMUFileFtTrans *f1 = s1->file->opaque;
+    //printf("in alarm f->cancel:%d\n",);
+    printf("f->cancel:%d f1->cancel:%d\n",f->cancel,f1->cancel);
+    if(f->cancel||f1->cancel)
+    {
+        f->cancel = false;
+        return;
+    }
+    printf("in Alarm... Cancelret:%d\n",Cancelret);
+    cuju_migrate_cancel(s);
+}
+static void uninit_time(void)  
+{
+    struct itimerval t;  
+    t.it_value.tv_sec = 0;  
+    t.it_value.tv_usec = 0;  
+    t.it_interval = t.it_value;  
+    setitimer(ITIMER_REAL, &t, NULL);  
+}
 static inline double time_in_double(void)
 {
    struct timespec ts;
@@ -1548,16 +1575,25 @@ void qmp_migrate_cancel(Error **errp)
 }
 void qmp_cuju_migrate_cancel(Error **errp)
 {
+    Cancelret = -5;
+
     printf("in qmp_cuju_migrate_cancel\n");
     MigrationState *s = migrate_get_current();
-    MigrationState *s1 = migrate_get_next(s);
-    s->file->last_error = -1;
-    printf("s->ftstate:%d  s1->ftstate:%d\n",s->ft_state,s1->ft_state);
-    if(s->ft_state == 9 && s1->ft_state == 9)
-        cuju_migrate_cancel(s);
-    else
-        migrate_cancel = true;
+    struct itimerval t;
+    t.it_interval.tv_usec = 0;
+    t.it_interval.tv_sec = 0;
+    t.it_value.tv_usec = 500000;
+    t.it_value.tv_sec = 0;
 
+    if( setitimer( ITIMER_REAL, &t, NULL) < 0 ){
+        printf("settimer error.\n");
+        return;
+    }
+    signal( SIGALRM, my_alarm_handler );
+    
+    Cancelret = cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);
+    printf("Cancelretret:%d\n",Cancelret);
+       
 }
 void qmp_migrate_set_cache_size(int64_t value, Error **errp)
 {
@@ -2165,7 +2201,7 @@ static void migrate_fd_get_notify(void *opaque)
     MigrationState *s = opaque;
     
     qemu_file_get_notify(s->file);
-    //printf("migrate_fd_get_notify\n");
+
     if ((qemu_file_get_error(s->file) && qemu_file_get_error(s->file) != -EAGAIN) ) {
         printf("fail!\n");
         cuju_migrate_cancel_con(s);
@@ -2174,20 +2210,19 @@ static void migrate_fd_get_notify(void *opaque)
 }
 static void cuju_migrate_cancel(void *opaque)
 {
-    MigrationState *s = opaque;
-    MigrationState *s1 = opaque;
+    MigrationState *s = migrate_get_current();
+    MigrationState *s1 = migrate_get_next(s);
     
-    //CujuQEMUFileFtTrans *S = opaque;  //s->close(s);
-    s1 = migrate_get_next(s);
     qemu_set_fd_handler(s->fd, NULL, NULL, NULL);
     close(s->fd);
+    //s->close(s);
     trans_serial=0;
     run_serial = 0;
     s->fd = -1;
 
-
     qemu_set_fd_handler(s1->fd, NULL, NULL, NULL);
     close(s1->fd);
+    //s1->close(s1);
     s1->fd = -1;
 
     //qmp_migrate_pause();
@@ -2240,10 +2275,10 @@ static void cuju_migrate_cancel_con(void *opaque)
     qemu_iohandler_ft_pause(false);    
     
     
-    if(enter)
+    if(last_enter)
     {
         printf("second times\n");
-        enter = false;
+        last_enter = 0;
         migrate_cancel = false; 
         vm_start_mig();
         vm_start();
@@ -2251,7 +2286,7 @@ static void cuju_migrate_cancel_con(void *opaque)
     }
     else
     {
-        enter = 1;
+        last_enter = 1;
     }
     
 }
@@ -2404,7 +2439,10 @@ static void kvmft_flush_output(MigrationState *s)
 static int migrate_ft_trans_get_ready(void *opaque)
 {
     MigrationState *s = opaque;
+    //MigrationState *s1 = migrate_get_next(s);
     CujuQEMUFileFtTrans *f = s->file->opaque;
+    //CujuQEMUFileFtTrans *f1 = s1->file->opaque;
+    
     static bool kvmft_first_ack = true;
     //static bool enter=true;
     //static bool kvmft_first_ack;
@@ -2412,26 +2450,11 @@ static int migrate_ft_trans_get_ready(void *opaque)
 
     if (!qemu_ft_trans_is_sender(s->file))
         return 0;
-    if(force_flush)
-    {    
-        force_flush= false;
-        goto flush;
-    }
-    /* if (migrate_cancel)
-    {
-        //(CujuQEMUFileFtTrans)s->file-> = CUJU_FT_TRANS_ERR_RECV_HDR;
-        //((CujuQEMUFileFtTrans *)s->file)->has_error = CUJU_FT_TRANS_ERR_RECV_HDR;
-        //cuju_migrate_cancel(s);
-        
-        printf("get_ready migrate_cancel\n");
-        s->file->last_error = -1;
-        goto migrate_cancel;
-    }*/
+
     switch (s->ft_state) {
 
     case CUJU_FT_INIT:
-        
-        //enter = 1;
+
         //printf("%s recv ack, index %d\n", __func__, s->cur_off);
         if ((ret = qemu_ft_trans_recv_ack(s->file)) < 0) {
             printf("%s sender receive ACK failed.\n", __func__);
@@ -2460,8 +2483,7 @@ static int migrate_ft_trans_get_ready(void *opaque)
         //if(migrate_cancel)
             //f->cancel= true;
         if ((ret = qemu_ft_trans_recv_ack1(s->file)) < 0 ) {
-            printf("f->cancel:%d\n",f->cancel);
-            printf("ret: %d\n",ret);           
+            
             printf("%s sender receive ACK1 failed.\n", __func__);
             //printf("s->file->last_error:%d  f->has_error:%d f->state:%d",s->file->last_error,f->has_error,f->state);
             /*dirty_page_tracking_logs_start_flush_output(s);         //force flush.
@@ -2469,14 +2491,21 @@ static int migrate_ft_trans_get_ready(void *opaque)
             kvmft_flush_output(s);//test*/
             goto backup_close;
         }
+        if(f->cancel)
+        {  
+            uninit_time();
+            printf("cancel timer...\n");
+            migrate_cancel = true;
+            f->cancel =false;
+        }
         //printf("recv ack\n");
         FTPRINTF("%s slave ack1 time %lf\n", __func__,
             time_in_double() - s->transfer_finish_time);
-    flush: 
+    //flush: 
         flush_start=time_in_double();
         dirty_page_tracking_logs_start_flush_output(s);
         migrate_set_ft_state(s, CUJU_FT_TRANSACTION_FLUSH_OUTPUT);
-        enter=0;
+        //enter=0;
 		kvmft_flush_output(s);
         
         break;
@@ -2932,16 +2961,20 @@ static void cuju_ft_trans_incoming(void *opaque)
 {
     QEMUFile *f = opaque;
     CujuQEMUFileFtTrans *s = f->opaque;
-
-    //printf("cuju_ft_trans_incoming\n");
+    /*MigrationState *s1 = opaque;
+    MigrationState *s2 = migrate_get_next(s1);
+    CujuQEMUFileFtTrans *f1 = s1->file->opaque;
+    CujuQEMUFileFtTrans *f2 = s2->file->opaque;*/
+    
+    
     qemu_file_get_notify(f);
-    if(s->cancel)
+    if(s->cancel||s->check)
+    {    
         exit(0);
+    }
     if (qemu_file_get_error(f)) {
         cuju_ft_mode = CUJU_FT_ERROR;
-        //if(!s->cancel)
-            qemu_fclose(f);
-            
+            qemu_fclose(f);          
         /*else
         {
             //((CujuQEMUFileFtTrans *)s->file)->has_error = CUJU_FT_TRANS_ERR_RECV_HDR;
