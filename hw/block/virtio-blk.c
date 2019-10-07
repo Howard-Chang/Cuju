@@ -208,19 +208,28 @@ static void virtio_blk_req_complete(VirtIOBlockReq *req, unsigned char status)
     VirtIODevice *vdev = VIRTIO_DEVICE(s);
 
     trace_virtio_blk_req_complete(req, status);
-
+    VirtIOBlockReq *pendReqCheck;
     if (kvmft_started()){
         confirm_req_read_memory_mapped(req);
     }else{
-        if (req->in == NULL) {
-            unsigned in_num = req->elem.in_num;
-            struct iovec *in_iov = req->elem.in_sg;
-            virtqueue_map_write(&req->elem);
+        if ((req->in == NULL) && (req->in_len == 0)) {
+            pendReqCheck = s->pending_rq;
+            printf("Let's try in pendReqCheck = %p\n",pendReqCheck);
+            while (pendReqCheck) {
+                printf("#####  pendReqCheck = %p, req = %p  #####\n",pendReqCheck,req);
+                if(pendReqCheck == req){
+                    printf("########################################\n");
+                    unsigned in_num = req->elem.in_num;
+                    struct iovec *in_iov = req->elem.in_sg;
+                    virtqueue_map_write(&req->elem);
 
-            req->in = (void *)in_iov[in_num - 1].iov_base
-                + in_iov[in_num - 1].iov_len
-                - sizeof(struct virtio_blk_inhdr);
-            req->in_len = iov_size(in_iov, in_num);
+                    req->in = (void *)in_iov[in_num - 1].iov_base
+                        + in_iov[in_num - 1].iov_len
+                        - sizeof(struct virtio_blk_inhdr);
+                    req->in_len = iov_size(in_iov, in_num);
+                }
+                pendReqCheck = pendReqCheck->next;
+            }
         }
     }
 

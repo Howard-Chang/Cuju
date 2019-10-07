@@ -595,7 +595,7 @@ static bool cuju_ft_trans_load_ready(CujuQEMUFileFtTrans *s)
 static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
 {
     int ret = 0;
-    CujuQEMUFileFtTrans* s1 = cuju_ft_trans_get_next(s);
+    //CujuQEMUFileFtTrans* s1 = cuju_ft_trans_get_next(s);
     static unsigned long ft_serial = 1;
     //printf("cuju_ft_trans_try_load time:%lf\n",time_in_double());
     qemu_mutex_lock(&cuju_load_mutex);
@@ -610,25 +610,19 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
         printf("%s %p->ft_serial = %ld/%ld ready %d\n", __func__, s, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     }
 #endif
-    /* if(enter)
-    {
-        ft_serial = s->ft_serial ;
-        enter=0;
-    }*/
+
     //printf("s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     if(s->ft_serial != ft_serial)
         printf("not equal!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
     while (s->ft_serial == ft_serial && cuju_ft_trans_load_ready(s)) {
-        if(s->check||s1->check)
+        ret = cuju_ft_trans_send_header(s,s->check<<15|CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
+        if(s->check)
         {
-            ret = cuju_ft_trans_send_header(s, 1<<15|CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
-            //s->check = false;
+            printf("Ack1 + alive header\n");           
             s->cancel = true;
             if(ret>=0)
                 exit(0);
         }
-        else
-            ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
 
         if (ret < 0) {
             printf("%s send ack failed.\n", __func__);
