@@ -931,7 +931,7 @@ Cancel the current VM migration.
 ETEXI
 
     {
-        .name       = "cuju_migrate_cancel",
+        .name       = "cuju-migrate-cancel",
         .args_type  = "",
         .params     = "",
         .help       = "cancel the current VM migration",

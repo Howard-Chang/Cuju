@@ -184,7 +184,7 @@ int qio_ft_sock_fd = 0;
 static int migration_states_current;
 
 static void migrate_fd_get_notify(void *opaque);
-static void cuju_migrate_cancel(void *opaque);
+static void cuju_migrate_cancel_discon(void *opaque);
 static void cuju_migrate_cancel_con(void *opaque);
 
 int cuju_get_fd_from_QIOChannel(QIOChannel *ioc);
@@ -228,20 +228,20 @@ static MigrationState *migrate_get_next(MigrationState *s)
     return migration_states[index];
 }
 
-static void my_alarm_handler(int a)
+static void trigger_cuju_migrate_cancel(int a)
 {
     MigrationState *s = migrate_get_current();
     printf("cuju_migrate_cancel...\n");
-    cuju_migrate_cancel(s);
+    cuju_migrate_cancel_discon(s);
 }
-static void backupclose(int a)
+/*static void backupclose(int a)
 {
     MigrationState *s = migrate_get_current();
     QEMUFile *f = s->file;
     printf("trigger qemu_fclose\n");
     qemu_fclose(f);
   
-}
+}*/
 static void uninit_time(void)  
 {
     struct itimerval t;  
@@ -1572,23 +1572,22 @@ void qmp_migrate_cancel(Error **errp)
 }
 void qmp_cuju_migrate_cancel(Error **errp)
 {
-
+    
     printf("in qmp_cuju_migrate_cancel\n");
     MigrationState *s = migrate_get_current();
+    cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);  
     struct itimerval t;
     t.it_interval.tv_usec = 0;
     t.it_interval.tv_sec = 0;
-    t.it_value.tv_usec = 0;
-    t.it_value.tv_sec = 1;
+    t.it_value.tv_usec = 100000;
+    t.it_value.tv_sec = 0;
 
     if( setitimer( ITIMER_REAL, &t, NULL) < 0 ){
         printf("settimer error.\n");
         return;
     }
-    signal( SIGALRM, my_alarm_handler );
-    
-    cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);
-    
+    signal( SIGALRM, trigger_cuju_migrate_cancel );
+    //cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);  
        
 }
 void qmp_migrate_set_cache_size(int64_t value, Error **errp)
@@ -2204,7 +2203,7 @@ static void migrate_fd_get_notify(void *opaque)
     }
 
 }
-static void cuju_migrate_cancel(void *opaque)
+static void cuju_migrate_cancel_discon(void *opaque)
 {
     MigrationState *s = migrate_get_current();
     MigrationState *s1 = migrate_get_next(s);
@@ -2450,7 +2449,6 @@ static int migrate_ft_trans_get_ready(void *opaque)
         //printf("%s recv ack, index %d\n", __func__, s->cur_off);
         if ((ret = qemu_ft_trans_recv_ack(s->file)) < 0) {
             printf("%s sender receive ACK failed.\n", __func__);
-            //pause();  //
             goto error_out;
         }
         migrate_set_ft_state(s, CUJU_FT_TRANSACTION_PRE_RUN);
@@ -2472,12 +2470,12 @@ static int migrate_ft_trans_get_ready(void *opaque)
         break;
 
     case CUJU_FT_TRANSACTION_TRANSFER:
+        
         if ((ret = qemu_ft_trans_recv_ack1(s->file)) < 0 ) {
-            
             printf("%s sender receive ACK1 failed.\n", __func__);
-            dirty_page_tracking_logs_start_flush_output(s);         //force flush.
+            /*dirty_page_tracking_logs_start_flush_output(s);         //force flush.
             migrate_set_ft_state(s, CUJU_FT_TRANSACTION_FLUSH_OUTPUT);
-            kvmft_flush_output(s);
+            kvmft_flush_output(s);*/
             goto backup_close;
         }
         if(f->cancel)
@@ -2494,7 +2492,6 @@ static int migrate_ft_trans_get_ready(void *opaque)
         flush_start=time_in_double();
         dirty_page_tracking_logs_start_flush_output(s);
         migrate_set_ft_state(s, CUJU_FT_TRANSACTION_FLUSH_OUTPUT);
-        //enter=0;
 		kvmft_flush_output(s);
         
         break;
@@ -2962,20 +2959,20 @@ static void cuju_ft_trans_incoming(void *opaque)
         {    
             exit(0);
         }
-        struct itimerval t;
+        /*struct itimerval t;
         t.it_interval.tv_usec = 0;
         t.it_interval.tv_sec = 0;
-        t.it_value.tv_usec = 0;
-        t.it_value.tv_sec = 1;
+        t.it_value.tv_usec = 100000;
+        t.it_value.tv_sec = 0;
 
         if( setitimer( ITIMER_REAL, &t, NULL) < 0 ){
             printf("settimer error.\n");
             return;
         }
-        signal( SIGALRM, backupclose );
-        if(count>10)
+        signal( SIGALRM, backupclose );*/
+        if(count>100)
         {
-            uninit_time();
+            //uninit_time();
             qemu_fclose(f);       
         }          
 
@@ -2993,12 +2990,9 @@ static QEMUFile *cuju_setup_slave_receiver(int s, QEMUFile *devf, QEMUFile *ramf
     QEMUFile *f;
     int dev_fd = cuju_get_fd_from_QIOChannel(devf->opaque);
     int ram_fd = cuju_get_fd_from_QIOChannel(ramf->opaque);
-    printf("ram_fd:%d \n",ram_fd);
-    printf("dev_fd:%d \n",dev_fd);
     f = cuju_qemu_fopen_ft_trans(s, dev_fd, ram_fd, -1);
     assert(f != NULL);
-    /*((CujuQEMUFileFtTrans *)ss)->dev_fd= dev_fd;
-    ((CujuQEMUFileFtTrans *)ss)->ram_fd= ram_fd;*/
+
     qemu_set_nonblock(dev_fd);
     qemu_set_fd_handler(dev_fd, cuju_ft_trans_incoming, NULL, f);
 

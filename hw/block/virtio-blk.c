@@ -208,16 +208,16 @@ static void virtio_blk_req_complete(VirtIOBlockReq *req, unsigned char status)
     VirtIODevice *vdev = VIRTIO_DEVICE(s);
 
     trace_virtio_blk_req_complete(req, status);
-    VirtIOBlockReq *pendReqCheck;
+    //VirtIOBlockReq *pendReqCheck;
     if (kvmft_started()){
         confirm_req_read_memory_mapped(req);
     }else{
         if ((req->in == NULL) && (req->in_len == 0)) {
-            pendReqCheck = s->pending_rq;
+            /*pendReqCheck = s->pending_rq;
             printf("Let's try in pendReqCheck = %p\n",pendReqCheck);
             while (pendReqCheck) {
                 printf("#####  pendReqCheck = %p, req = %p  #####\n",pendReqCheck,req);
-                if(pendReqCheck == req){
+                if(pendReqCheck == req){*/
                     printf("########################################\n");
                     unsigned in_num = req->elem.in_num;
                     struct iovec *in_iov = req->elem.in_sg;
@@ -227,9 +227,9 @@ static void virtio_blk_req_complete(VirtIOBlockReq *req, unsigned char status)
                         + in_iov[in_num - 1].iov_len
                         - sizeof(struct virtio_blk_inhdr);
                     req->in_len = iov_size(in_iov, in_num);
-                }
+                /*}
                 pendReqCheck = pendReqCheck->next;
-            }
+            }*/
         }
     }
 

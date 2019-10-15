@@ -120,11 +120,15 @@ void cuju_ft_trans_flush_buf_desc(void *opaque)
             ssize_t ret;
 
             ret = s->put_buffer(s->opaque, desc->buf + offset, desc->size - offset);
+            //printf("ret:%ld desc->size - offset:%ld\n",ret,desc->size - offset);
             if (ret == -EAGAIN || ret == -EWOULDBLOCK) {
                 //desc->off = offset;
                 //break;
                 continue;
             } else if (ret <= 0) {
+                printf("cuju_ft_trans_flush_buf_desc!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+                offset += desc->size - offset;
+                break;
                 error_report("error flushing data, %s\n", strerror(errno));
                 printf("%s %p + %lu\n", __func__, desc->buf, offset);
                 s->has_error = CUJU_FT_TRANS_ERR_FLUSH;
@@ -485,7 +489,7 @@ static int cuju_ft_trans_recv_header(CujuQEMUFileFtTrans *s)
             cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_ALIVE, 0);
             s->cancel = true;
         }*/
-        if (s->header.cmd == (1<<15|CUJU_QEMU_VM_TRANSACTION_ACK1))
+        else if (s->header.cmd == (1<<15|CUJU_QEMU_VM_TRANSACTION_ACK1))
         {
             printf("recv CUJU_QEMU_VM_TRANSACTION_ALIVE\n");
             s->header.cmd = CUJU_QEMU_VM_TRANSACTION_ACK1;
@@ -720,9 +724,6 @@ static int cuju_ft_trans_recv(CujuQEMUFileFtTrans *s)
         break;
     case CUJU_QEMU_VM_TRANSACTION_CHECKALIVE:
             printf("recv CHECKALIVE\n");
-            /*ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_ALIVE, 0);
-            if(ret>=0)
-                printf("send alive\n");*/
             s->check = true;
         break;
     default:
@@ -1164,29 +1165,7 @@ int cuju_ft_trans_flush_output(void *opaque)
 out:
     return ret;
 }
-int cuju_ft_trans_cancel1(void *opaque, int ram_len, unsigned long serial)
-{
-    CujuQEMUFileFtTrans *s = opaque;
-    int ret;
 
-    //assert(s->is_sender);
-
-    //assert(s->last_cmd == CUJU_QEMU_VM_TRANSACTION_BEGIN);
-    s->last_cmd = CUJU_QEMU_VM_TRANSACTION_CANCEL1;
-
-    //s->ft_serial = serial;
-    printf("send cancel1\n");
-    ret = cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_CANCEL1, ram_len);
-    if (ret < 0) {
-        printf("%s send cancel1 failed %d\n", __func__, ret);
-        goto out;
-    }
-
-    //s->state = CUJU_QEMU_VM_TRANSACTION_CONTINUE;
-
-out:
-    return ret;
-}
 int cuju_ft_trans_commit1(void *opaque, int ram_len, unsigned long serial)
 {
     CujuQEMUFileFtTrans *s = opaque;

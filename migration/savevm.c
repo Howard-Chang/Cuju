@@ -245,16 +245,7 @@ int qemu_ft_trans_recv_ack1(QEMUFile *f)
         f->last_error = ret;
     return ret;
 }
-int qemu_ft_trans_cancel1(QEMUFile *f, int ram_len, unsigned long serial)
-{
-    int ret;
-    
-    ret = cuju_ft_trans_cancel1(f->opaque, ram_len, serial);
-    printf("send cancel  %d\n",ret);
-    if (ret < 0)
-        f->last_error = ret;
-    return ret;
-}
+
 int qemu_ft_trans_commit1(QEMUFile *f, int ram_len, unsigned long serial)
 {
     int ret;

@@ -1120,12 +1120,17 @@ static void* trans_ram_conn_thread_func(void *opaque)
         s->ram_len += ret;
         //printf("ram_len: %d\n",ret);
         ret = kvm_start_kernel_transfer(s->cur_off, s->ram_fds[d->index], d->index, ft_ram_conn_count);
-
-        assert(ret >= 0);
-        /*if(ret<0)
+        //printf("ret: %d\n",ret);
+        //assert(ret >= 0);
+        if(ret<0)
         {
-            force_flush=1;
-        }*/
+            printf("ret<0    %d!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",ret);
+            continue;
+            
+            ret=0;
+            s->ram_len = 0;
+            //force_flush=1;
+        }
         // TODO need lock
         s->ram_len += ret;
 
