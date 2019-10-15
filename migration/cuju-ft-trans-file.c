@@ -623,7 +623,7 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
         if(s->check)
         {
             printf("Ack1 + alive header\n");           
-            s->cancel = true;
+            //s->cancel = true;
             if(ret>=0)
                 exit(0);
         }

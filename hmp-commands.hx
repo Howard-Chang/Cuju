@@ -939,8 +939,8 @@ ETEXI
     },
 
 STEXI
-@item cuju_migrate_cancel
-@findex cuju_migrate_cancel
+@item cuju-migrate-cancel
+@findex cuju-migrate-cancel
 Cancel the current VM migration.
 
 ETEXI

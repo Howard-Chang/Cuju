@@ -1575,6 +1575,7 @@ void qmp_cuju_migrate_cancel(Error **errp)
     
     printf("in qmp_cuju_migrate_cancel\n");
     MigrationState *s = migrate_get_current();
+    cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);
     cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);  
     struct itimerval t;
     t.it_interval.tv_usec = 0;

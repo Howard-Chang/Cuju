@@ -1911,6 +1911,19 @@
 { 'command': 'migrate_cancel' }
 
 ##
+# @cuju_migrate_cancel:
+#
+# Cancel the current executing migration process.
+#
+# Returns: nothing on success
+#
+# Notes: This command succeeds even if there is no migration process running.
+#
+# Since: 0.14.0
+##
+{ 'command': 'cuju-migrate-cancel' }
+
+##
 # @migrate_set_downtime:
 #
 # Set maximum tolerated downtime for migration.

@@ -127,4 +127,8 @@ Module.symvers
 Modules.symvers
 Module.markers
 .tmp_versions
-
+.vscode-root/
+GPATH
+GRTAGS
+GTAGS
+.vscode
