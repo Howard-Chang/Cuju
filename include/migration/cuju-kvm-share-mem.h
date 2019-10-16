@@ -26,9 +26,9 @@
 #define SHARED_DIRTY_WATERMARK  9600
 
 extern int ft_started;
-
+extern int migrate_cancel;
 bool cuju_supported(void);
-extern bool force_flush;
+
 void kvmft_pre_init(void);
 void kvm_share_mem_init(unsigned long ram_size);
 
@@ -40,6 +40,9 @@ void kvm_shmem_trans_ram_bh(void *opaque);
 void kvm_shmem_start_ft(void);
 void kvm_shmem_stop_ft(void);  //add
 void kvm_shmem_cancel_timer(void);
+void kvm_shmem_start_migrate_cancel(void);
+void kvm_shmem_stop_migrate_cancel(void);
+int kvm_shmem_migrate_cancel(void);
 int kvmft_started(void);
 int kvmft_write_protect_dirty_pages(int cur_index);
 int kvm_shm_clear_dirty_bitmap(int cur_index);

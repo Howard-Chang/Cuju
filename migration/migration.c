@@ -51,8 +51,7 @@ double flush_start=0.0;
 //#define ft_debug_mode_enable
 static unsigned long trans_serial = 0;
 static unsigned long run_serial = 0;
-bool migrate_cancel = false;
-bool migration_paused = false;
+//bool migrate_cancel = false;
 static int last_enter = 0;
 #ifdef DEBUG_MIGRATION
 #define DPRINTF(fmt, ...) \
@@ -227,12 +226,22 @@ static MigrationState *migrate_get_next(MigrationState *s)
     int index = (s->cur_off + 1) % migration_states_count;
     return migration_states[index];
 }
-
+static void uninit_time(void)  
+{
+    struct itimerval t;  
+    t.it_value.tv_sec = 0;  
+    t.it_value.tv_usec = 0;  
+    t.it_interval = t.it_value;  
+    setitimer(ITIMER_REAL, &t, NULL);  
+}
+const struct linger nolinger = { .l_onoff = 0, .l_linger = 0 };
 static void trigger_cuju_migrate_cancel(int a)
 {
+
     MigrationState *s = migrate_get_current();
     printf("cuju_migrate_cancel...\n");
     cuju_migrate_cancel_discon(s);
+    
 }
 /*static void backupclose(int a)
 {
@@ -242,14 +251,7 @@ static void trigger_cuju_migrate_cancel(int a)
     qemu_fclose(f);
   
 }*/
-static void uninit_time(void)  
-{
-    struct itimerval t;  
-    t.it_value.tv_sec = 0;  
-    t.it_value.tv_usec = 0;  
-    t.it_interval = t.it_value;  
-    setitimer(ITIMER_REAL, &t, NULL);  
-}
+
 static inline double time_in_double(void)
 {
    struct timespec ts;
@@ -1572,11 +1574,16 @@ void qmp_migrate_cancel(Error **errp)
 }
 void qmp_cuju_migrate_cancel(Error **errp)
 {
-    
     printf("in qmp_cuju_migrate_cancel\n");
     MigrationState *s = migrate_get_current();
-    cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);
-    cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, s->ram_len);  
+    MigrationState *s1 = migrate_get_next(s);
+    cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, 0);  
+    cuju_ft_trans_send_header(s1->file->opaque, CUJU_QEMU_VM_TRANSACTION_CHECKALIVE, 0);  
+    CujuQEMUFileFtTrans *f = s->file->opaque;
+    CujuQEMUFileFtTrans *f1 = s1->file->opaque;
+    
+    f->check = true;
+    f1->check = true;
     struct itimerval t;
     t.it_interval.tv_usec = 0;
     t.it_interval.tv_sec = 0;
@@ -2208,6 +2215,8 @@ static void cuju_migrate_cancel_discon(void *opaque)
 {
     MigrationState *s = migrate_get_current();
     MigrationState *s1 = migrate_get_next(s);
+    setsockopt(s->fd, SOL_SOCKET, SO_LINGER,(struct linger *) &nolinger, sizeof(struct linger));
+    setsockopt(s1->fd, SOL_SOCKET, SO_LINGER,(struct linger *) &nolinger, sizeof(struct linger));
     
     qemu_set_fd_handler(s->fd, NULL, NULL, NULL);
     close(s->fd);
@@ -2233,19 +2242,11 @@ static void cuju_migrate_cancel_discon(void *opaque)
     printf("enter\n");
     qemu_iohandler_ft_pause(false);    
     
-    
-    //if(enter)
-    //{
-        //enter = false;
-        migrate_cancel = false; 
-        vm_start_mig();
-        vm_start();
-        
-    //}
-    //else
-    //{
-    //   enter = 1;
-    //}
+
+    //migrate_cancel = false; 
+    vm_start_mig();
+    vm_start();
+
 }
 static void cuju_migrate_cancel_con(void *opaque)
 {
@@ -2255,8 +2256,6 @@ static void cuju_migrate_cancel_con(void *opaque)
     trans_serial=0;
     run_serial = 0;
     s->fd = -1;
-
-    //qmp_migrate_pause();
 
     qemu_iohandler_ft_pause(true);
     //kvm_vm_ioctl(kvm_state,KVMFT_RESTORE_PREVIOUS_EPOCH,(void *)s);
@@ -2273,7 +2272,7 @@ static void cuju_migrate_cancel_con(void *opaque)
     {
         printf("second times\n");
         last_enter = 0;
-        migrate_cancel = false; 
+        //migrate_cancel = false; 
         vm_start_mig();
         vm_start();
         
@@ -2436,7 +2435,6 @@ static int migrate_ft_trans_get_ready(void *opaque)
     CujuQEMUFileFtTrans *f = s->file->opaque;
     
     static bool kvmft_first_ack = true;
-    //static bool enter=true;
     //static bool kvmft_first_ack;
     int ret = -1;
 
@@ -2446,7 +2444,10 @@ static int migrate_ft_trans_get_ready(void *opaque)
     switch (s->ft_state) {
 
     case CUJU_FT_INIT:
-
+        kvm_shmem_stop_migrate_cancel();
+        //migrate_cancel = 0;
+        f->check = false;
+        f->cancel = 0;
         //printf("%s recv ack, index %d\n", __func__, s->cur_off);
         if ((ret = qemu_ft_trans_recv_ack(s->file)) < 0) {
             printf("%s sender receive ACK failed.\n", __func__);
@@ -2479,17 +2480,20 @@ static int migrate_ft_trans_get_ready(void *opaque)
             kvmft_flush_output(s);*/
             goto backup_close;
         }
-        if(f->cancel)
+        if(f->cancel==1)
         {  
+            MigrationState *s1 = migrate_get_next(s);
+            CujuQEMUFileFtTrans *f1 = s1->file->opaque;
+            f1->cancel = 2;
             uninit_time();
             printf("cancel timer...\n");
-            migrate_cancel = true;
-            f->cancel =false;
+            kvm_shmem_start_migrate_cancel();
+            f->cancel++;
         }
         //printf("recv ack\n");
         FTPRINTF("%s slave ack1 time %lf\n", __func__,
             time_in_double() - s->transfer_finish_time);
-    //flush: 
+
         flush_start=time_in_double();
         dirty_page_tracking_logs_start_flush_output(s);
         migrate_set_ft_state(s, CUJU_FT_TRANSACTION_FLUSH_OUTPUT);
@@ -2971,7 +2975,7 @@ static void cuju_ft_trans_incoming(void *opaque)
             return;
         }
         signal( SIGALRM, backupclose );*/
-        if(count>100)
+        if(count>10)
         {
             //uninit_time();
             qemu_fclose(f);       
@@ -3042,7 +3046,7 @@ out:
 
 static void migrate_run(MigrationState *s)
 {
-    int ret=-1;
+    CujuQEMUFileFtTrans *f = s->file->opaque;
     FTPRINTF("%s %d\n", __func__, s->cur_off);
     if (migrate_token_owner != s || s->ft_state != CUJU_FT_TRANSACTION_PRE_RUN) {
         FTPRINTF("%s cant run own != s ? %d ft_state == %d\n", __func__,
@@ -3073,13 +3077,10 @@ static void migrate_run(MigrationState *s)
 #else
     kvm_shmem_start_timer();
 #endif
-    if(migrate_cancel)
+    if(f->cancel)
     {    
-        //send_cancel(s);
+        printf("in migrate_run and start cancel\n");
         migrate_token_owner->file->last_error = -1;
-        //ret=cuju_ft_trans_send_header(s->file->opaque, CUJU_QEMU_VM_TRANSACTION_CANCEL1, s->ram_len);
-        if(ret>=0)
-            printf("send cancel\n");
         cuju_migrate_cancel_con(s);
     }
 

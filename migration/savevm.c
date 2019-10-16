@@ -182,8 +182,9 @@ static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     ssize_t len;
 
     do {
-        //printf("s->fd:%d\n",s->fd);
+        
         len = qemu_recv(s->fd, buf, size, 0);
+        //printf("len:%ld\n",len);
     } while (len == -1 && socket_error() == EINTR);
 
     if (len == -1)

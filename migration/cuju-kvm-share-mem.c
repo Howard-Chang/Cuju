@@ -38,7 +38,6 @@ static unsigned int dirty_pages_userspace_off_committed = 0;
 static unsigned int dirty_pages_userspace[1024];
 static unsigned int dirty_pages_userspace_committed[1024];
 static uint8_t dirty_pages_userspace_copy[1024][4096];
-//bool force_flush;
 static void dirty_pages_userspace_add(unsigned long gfn)
 {
     int i, cnt;
@@ -124,7 +123,7 @@ static void*** page_array;
 static int bitmap_count;
 
 int ft_started = 0;
-
+int migrate_cancel = 0;
 static unsigned int epoch_time_in_us = EPOCH_TIME_IN_MS * 1000;
 
 bool cuju_supported(void)
@@ -297,6 +296,24 @@ void kvm_shmem_stop_ft(void)
  
     ft_started = 0;
 }
+
+void kvm_shmem_start_migrate_cancel(void)
+{
+    migrate_cancel = 1;
+    //return migrate_cancel;
+}
+
+void kvm_shmem_stop_migrate_cancel(void)
+{
+    migrate_cancel = 0;
+    //return migrate_cancel;
+}
+
+int kvm_shmem_migrate_cancel(void)
+{
+    return migrate_cancel;
+}
+
 void kvm_shmem_cancel_timer(void){
     kvm_vm_ioctl(kvm_state, KVM_SHM_CANCEL_TIMER);
 }
@@ -1118,20 +1135,18 @@ static void* trans_ram_conn_thread_func(void *opaque)
         ret = dirty_pages_userspace_transfer(s->ram_fds[d->index]);
         assert(ret >= 0);
         s->ram_len += ret;
-        //printf("ram_len: %d\n",ret);
+
         ret = kvm_start_kernel_transfer(s->cur_off, s->ram_fds[d->index], d->index, ft_ram_conn_count);
         //printf("ret: %d\n",ret);
-        //assert(ret >= 0);
-        if(ret<0)
+        
+        if(ret<0 && migrate_cancel)
         {
-            printf("ret<0    %d!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",ret);
+            printf("ret<0    %d!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",ret);
+            migrate_cancel = 0;
             continue;
-            
-            ret=0;
-            s->ram_len = 0;
-            //force_flush=1;
         }
         // TODO need lock
+        assert(ret >= 0);
         s->ram_len += ret;
 
         if (d->index == 0) {

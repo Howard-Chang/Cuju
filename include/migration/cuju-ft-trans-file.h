@@ -139,7 +139,7 @@ typedef struct CujuQEMUFileFtTrans
     int ram_fd_expect;  // reset to -1
     int ram_fd_ack;     // should ram_fd handler send back ack?
     int dev_fd;
-    bool cancel;
+    int cancel;
     bool check;
 } CujuQEMUFileFtTrans;
 
@@ -149,7 +149,6 @@ extern void *cuju_ft_trans_s1;
 extern void *cuju_ft_trans_s2;
 extern void *cuju_ft_trans_curr;
 extern void *cuju_ft_trans_next;
-extern bool migrate_cancel;
 extern CujuQEMUFileFtTrans *last_cuju_ft_trans;
 #define CUJU_FT_TRANS_ERR_UNKNOWN        0x01 /* Unknown error */
 #define CUJU_FT_TRANS_ERR_SEND_HDR       0x02 /* Send header failed */
@@ -206,5 +205,4 @@ extern QemuCond cuju_load_cond;
 void cuju_socket_set_nodelay(int fd);
 void cuju_socket_unset_nodelay(int fd);
 void cuju_socket_set_quickack(int fd);
-
 #endif

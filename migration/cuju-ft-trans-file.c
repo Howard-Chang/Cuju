@@ -104,6 +104,7 @@ void cuju_ft_trans_flush_buf_desc(void *opaque)
     size_t offset;
     QEMUFile *f = opaque;
     CujuQEMUFileFtTrans *s = f->opaque;
+    
 
     do {
         desc = cuju_ft_trans_buf_desc_peek_first(s);
@@ -123,12 +124,16 @@ void cuju_ft_trans_flush_buf_desc(void *opaque)
             //printf("ret:%ld desc->size - offset:%ld\n",ret,desc->size - offset);
             if (ret == -EAGAIN || ret == -EWOULDBLOCK) {
                 //desc->off = offset;
-                //break;
+                //break; 
                 continue;
             } else if (ret <= 0) {
-                printf("cuju_ft_trans_flush_buf_desc!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-                offset += desc->size - offset;
-                break;
+                if(s->check)
+                {
+                    s->check = false;
+                    printf("cuju_ft_trans_flush_buf_desc!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+                    offset += desc->size - offset;
+                    break;
+                }
                 error_report("error flushing data, %s\n", strerror(errno));
                 printf("%s %p + %lu\n", __func__, desc->buf, offset);
                 s->has_error = CUJU_FT_TRANS_ERR_FLUSH;
@@ -483,12 +488,7 @@ static int cuju_ft_trans_recv_header(CujuQEMUFileFtTrans *s)
 
         if (s->header.cmd == CUJU_QEMU_VM_TRANSACTION_COMMIT1)
             s->ram_buf_expect = s->header.payload_len;
-        /*if (s->header.cmd == CUJU_QEMU_VM_TRANSACTION_CANCEL1)
-        {
-            printf("recv cancel\n");
-            cuju_ft_trans_send_header(s, CUJU_QEMU_VM_TRANSACTION_ALIVE, 0);
-            s->cancel = true;
-        }*/
+
         else if (s->header.cmd == (1<<15|CUJU_QEMU_VM_TRANSACTION_ACK1))
         {
             printf("recv CUJU_QEMU_VM_TRANSACTION_ALIVE\n");
@@ -496,7 +496,7 @@ static int cuju_ft_trans_recv_header(CujuQEMUFileFtTrans *s)
             s->state = CUJU_QEMU_VM_TRANSACTION_ACK1;
             s->header_offset = 0;
             s->ft_serial = s->header.serial;
-            s->cancel = true;
+            s->cancel = 1;
             goto out;
         }
         if (s->header.magic != CUJU_FT_HDR_MAGIC) {
@@ -623,7 +623,6 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
         if(s->check)
         {
             printf("Ack1 + alive header\n");           
-            //s->cancel = true;
             if(ret>=0)
                 exit(0);
         }
@@ -1144,13 +1143,7 @@ int cuju_ft_trans_flush_output(void *opaque)
             ret = -EAGAIN;
             goto out;
         }
-        /*if (s->header.cmd == CUJU_QEMU_VM_TRANSACTION_ALIVE)
-        {
-            printf("recv CUJU_QEMU_VM_TRANSACTION_ALIVE\n");
-            //s->state = CUJU_QEMU_VM_TRANSACTION_CONTINUE;
-            s->cancel = true;
-            goto out;
-        }*/
+
         if (s->header.cmd != CUJU_QEMU_VM_TRANSACTION_ACK1) {
             error_report("recv invalid state %d\n", s->header.cmd);
             s->has_error = CUJU_FT_TRANS_ERR_STATE_INVALID;
@@ -1275,7 +1268,7 @@ QEMUFile *cuju_qemu_fopen_ops_ft_trans(void *opaque,
     s->seq = 0;
     // better to explicitly give a value
     s->state = CUJU_QEMU_VM_TRANSACTION_INIT;
-    s->cancel = false;
+    s->cancel = 0;
     s->check = false;
     s->ram_hdr_fd = ram_hdr_fd;
     s->dev_fd = dev_fd;
