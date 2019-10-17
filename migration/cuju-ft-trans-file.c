@@ -121,7 +121,6 @@ void cuju_ft_trans_flush_buf_desc(void *opaque)
             ssize_t ret;
 
             ret = s->put_buffer(s->opaque, desc->buf + offset, desc->size - offset);
-            //printf("ret:%ld desc->size - offset:%ld\n",ret,desc->size - offset);
             if (ret == -EAGAIN || ret == -EWOULDBLOCK) {
                 //desc->off = offset;
                 //break; 
@@ -434,11 +433,7 @@ static int cuju_ft_trans_fill_buffer(void *opaque, void *buf, int size)
 
     while (!s->freeze_output && offset < size) {
         len = s->get_buffer(s->opaque, (uint8_t *)buf + offset,0, size - offset);
-        /*if(s->cancel)
-        {    
-            len = -104;
-            printf("cuju_ft_trans_fill_buffer HH\n");
-        }*/
+
         if (len == -EAGAIN || len == -EWOULDBLOCK) {
             trace_cuju_ft_trans_freeze_input();
             s->freeze_input = 1;
@@ -496,7 +491,7 @@ static int cuju_ft_trans_recv_header(CujuQEMUFileFtTrans *s)
             s->state = CUJU_QEMU_VM_TRANSACTION_ACK1;
             s->header_offset = 0;
             s->ft_serial = s->header.serial;
-            s->cancel = 1;
+            s->cancel_timer = true;
             goto out;
         }
         if (s->header.magic != CUJU_FT_HDR_MAGIC) {
@@ -599,25 +594,20 @@ static bool cuju_ft_trans_load_ready(CujuQEMUFileFtTrans *s)
 static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
 {
     int ret = 0;
-    //CujuQEMUFileFtTrans* s1 = cuju_ft_trans_get_next(s);
+
     static unsigned long ft_serial = 1;
-    //printf("cuju_ft_trans_try_load time:%lf\n",time_in_double());
     qemu_mutex_lock(&cuju_load_mutex);
     while (cuju_is_load == 1)
         qemu_cond_wait(&cuju_load_cond, &cuju_load_mutex);
     cuju_is_load = 1;
     qemu_mutex_unlock(&cuju_load_mutex);
-    //printf("s->ft_serial:%ld  ft_serial:%ld   %d\n",s->ft_serial , ft_serial,cuju_ft_trans_load_ready(s));
-    //printf("ram_buf_put_off:%d  ram_hdr_buf_put_off:%d   ram_buf_expect:%d\n",s->ram_buf_put_off,s->ram_hdr_buf_put_off,s->ram_buf_expect);
+    
 #ifdef ft_debug_mode_enable
     if (cuju_ft_trans_load_ready(s)) {
         printf("%s %p->ft_serial = %ld/%ld ready %d\n", __func__, s, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
     }
 #endif
 
-    //printf("s->fd:%d  s->ft_serial:%ld ft_serial:%ld  %d \n",s->ram_fd, s->ft_serial, ft_serial, cuju_ft_trans_load_ready(s));
-    if(s->ft_serial != ft_serial)
-        printf("not equal!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
     while (s->ft_serial == ft_serial && cuju_ft_trans_load_ready(s)) {
         ret = cuju_ft_trans_send_header(s,s->check<<15|CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
         if(s->check)
@@ -1047,19 +1037,16 @@ void cuju_ft_trans_read_pages(void *opaque)
 {
     
     CujuQEMUFileFtTrans *s = opaque;
-    /*if(migrate_cancel)
-        goto clear;*/
     int ret;
     static long cnt=-1;
     const int bunk = 4096;
-    //printf("read_pages1 time:%lf\n",time_in_double());
+
     cnt++;
     do {
         if (s->ram_buf_size < s->ram_buf_put_off + bunk) {
             s->ram_buf_size += bunk;
             s->ram_buf = g_realloc(s->ram_buf, s->ram_buf_size);
         }
-        //printf("cnt:%ld  read_pages2 time:%lf\n",cnt,time_in_double());
         ret = recv(s->ram_fd, s->ram_buf + s->ram_buf_put_off, bunk, 0);
         if (ret == 0) {
             printf("%s: disconn\n", __func__);
@@ -1078,20 +1065,16 @@ void cuju_ft_trans_read_pages(void *opaque)
             goto clear;
         }
         cuju_socket_set_quickack(s->ram_fd);
-        //printf("s->ram_fd:%d\n",s->ram_fd);
         s->ram_buf_put_off += ret;
         if (cuju_ft_trans_load_ready(s)) {
-            printf("FUCKKKKKKKKKKKKKKKKKKKKKKKKKK\n");
             ret = cuju_ft_trans_try_load(s);
             if (ret < 0) {
                 goto clear;
             }
         }
     } while (1);
-    printf("AAAA\n");
     return;
 clear:
-    printf("clear\n");
     qemu_set_fd_handler(s->ram_fd, NULL, NULL, NULL);
     close(s->ram_fd);
     s->ram_fd = -1;
@@ -1268,7 +1251,7 @@ QEMUFile *cuju_qemu_fopen_ops_ft_trans(void *opaque,
     s->seq = 0;
     // better to explicitly give a value
     s->state = CUJU_QEMU_VM_TRANSACTION_INIT;
-    s->cancel = 0;
+    s->cancel_timer = false;
     s->check = false;
     s->ram_hdr_fd = ram_hdr_fd;
     s->dev_fd = dev_fd;

@@ -1142,6 +1142,7 @@ static void* trans_ram_conn_thread_func(void *opaque)
         if(ret<0 && migrate_cancel)
         {
             printf("ret<0    %d!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",ret);
+            ret = 0;
             migrate_cancel = 0;
             continue;
         }
@@ -1150,7 +1151,7 @@ static void* trans_ram_conn_thread_func(void *opaque)
         s->ram_len += ret;
 
         if (d->index == 0) {
-            //printf("final ram_len: %d\n",ret);
+
 #ifdef CONFIG_KVMFT_USERSPACE_TRANSFER
             g_free(s->dirty_pfns);
             s->dirty_pfns = NULL;

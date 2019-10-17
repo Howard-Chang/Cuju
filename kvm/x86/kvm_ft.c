@@ -476,7 +476,7 @@ static int confirm_prev_dirty_bitmap_clear(struct kvm *kvm, int cur_index)
 //                return -EINVAL;
 			}
 		}*/
-        printk("cur_index:%d  dirty_bitmap:%ld\n",cur_index,*dirty_bitmap);
+
         if(*dirty_bitmap != 0)
             printk("%s is still set.\n", __func__);
 	}
