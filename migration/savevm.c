@@ -3019,6 +3019,8 @@ int qemu_loadvm_dev(QEMUFile *f)
         g_free(f->buf);
 
     QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
+        if(!failover && se->vmsd && strcmp(((VMStateDescription *)se->vmsd)->name,"virtio-blk")!=0)
+            continue;
         if (!se->state_buf)
             continue;
 
