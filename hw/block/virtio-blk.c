@@ -210,8 +210,8 @@ static void virtio_blk_req_complete(VirtIOBlockReq *req, unsigned char status)
     VirtIODevice *vdev = VIRTIO_DEVICE(s);
 
     trace_virtio_blk_req_complete(req, status);
-    if(req->callback == false)
-        printf("Normal  callback    finish in  %p\n",req);
+    //if(req->callback == false)
+        //printf("Normal  callback    finish in  %p\n",req);
 
     if (kvmft_started()){
         confirm_req_read_memory_mapped(req);
@@ -634,7 +634,7 @@ static inline void submit_requests(BlockBackend *blk, MultiReqBuffer *mrb,
     }
     if (is_write) {
         if(!ft_started || quota <= 0 ){
-            printf("SUSpend write callback from %p  quota = %d\n",mrb->reqs[start],quota);
+            //printf("SUSpend write callback from %p  quota = %d\n",mrb->reqs[start],quota);
             for (i = start ; i < start + num_reqs; i++) 
                 mrb->reqs[i]->callback = false;
             blk_aio_pwritev(blk, sector_num << BDRV_SECTOR_BITS, qiov, 0,
@@ -659,7 +659,7 @@ static inline void submit_requests(BlockBackend *blk, MultiReqBuffer *mrb,
         }
         for (i = start ; i < start + num_reqs; i++) 
             mrb->reqs[i]->callback = false;
-        printf("set read callback from %p   quota = %d\n",mrb->reqs[start],quota);
+        //printf("set read callback from %p   quota = %d\n",mrb->reqs[start],quota);
         blk_aio_preadv(blk, sector_num << BDRV_SECTOR_BITS, qiov, 0,
                     virtio_blk_rw_complete, mrb->reqs[start]);
     }

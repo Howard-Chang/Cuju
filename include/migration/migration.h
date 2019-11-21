@@ -58,7 +58,7 @@ struct CUJUFTDev
 #define QEMU_VM_SECTION_FOOTER       0x7e
 
 typedef uint64_t ram_addr_t;
-
+extern bool failover;
 extern int qio_ft_sock_fd;
 extern bool backup_die;
 struct MigrationParams {

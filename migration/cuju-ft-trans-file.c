@@ -36,7 +36,7 @@
 
 static QemuMutex *cuju_buf_desc_mutex = NULL;
 static QemuCond *cuju_buf_desc_cond = NULL;
-
+bool failover = true;
 int cuju_is_load = 0;
 QemuMutex cuju_load_mutex;
 QemuCond cuju_load_cond;
@@ -562,7 +562,7 @@ static void cuju_ft_trans_load(CujuQEMUFileFtTrans *s)
 	// check protocol in qemu_loadvm_state()
 	// qemu_loadvm_state(s->file, 1);
     qemu_loadvm_state(s->file, 1);
-
+    qemu_loadvm_dev(s->file);
     cuju_ft_trans_clean_buf(s);
 
     qemu_mutex_lock(&cuju_load_mutex);
@@ -603,7 +603,9 @@ static int cuju_ft_trans_try_load(CujuQEMUFileFtTrans *s)
             if backup receive checkalive header then s->check = 1 and the ACK1 header would set leftmost bit to be 1.   
             so s->check<<CUJU_FT_ALIVE_HEADER equal to 1<<15.
         */   
+
         ret = cuju_ft_trans_send_header(s,s->check<<CUJU_FT_ALIVE_HEADER|CUJU_QEMU_VM_TRANSACTION_ACK1, 0);
+
         if(s->check)
         {
             //printf("Ack1 + alive header\n");           
@@ -689,6 +691,7 @@ static int cuju_ft_trans_recv(CujuQEMUFileFtTrans *s)
 
         if (first_commit1) {
             first_commit1 = false;
+            failover = false;
             printf("first commit\n");
             qemu_loadvm_dev(s->file);
         }
@@ -796,7 +799,7 @@ out:
 static int cuju_ft_trans_close(void *opaque)
 {
     Error *local_err = NULL;
-
+    failover = true;
     CujuQEMUFileFtTrans *s = opaque;
     int ret;
 

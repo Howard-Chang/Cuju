@@ -64,7 +64,7 @@
 #define ARP_HTYPE_ETH 0x0001
 #define ARP_PTYPE_IP 0x0800
 #define ARP_OP_REQUEST_REV 0x3
-
+#define ft_debug_mode_enable
 const unsigned int postcopy_ram_discard_version = 0;
 
 static bool skip_section_footers;
@@ -485,6 +485,13 @@ typedef struct SaveStateEntry {
     uint8_t *state_buf;
     int state_buf_size;
 } SaveStateEntry;
+
+typedef struct RCQ {
+    SaveStateEntry se;
+    QEMUFile file;
+    int version_id;
+} RCQ;
+RCQ rcq;
 
 typedef struct SaveState {
     QTAILQ_HEAD(, SaveStateEntry) handlers;
@@ -925,6 +932,7 @@ void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
 
 static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
 {
+    static bool flag = false;
     trace_vmstate_load(se->idstr, se->vmsd ? se->vmsd->name : "(old)");
 	#ifdef ft_debug_mode_enable
     printf("load %s\n", se->idstr);
@@ -932,8 +940,26 @@ static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
     if (!se->vmsd) {         /* Old style */
         return se->ops->load_state(f, se->opaque, version_id);
     }
-    return vmstate_load_state(f, se->vmsd, se->opaque, version_id);
+    if(!failover && strcmp(((VMStateDescription *)se->vmsd)->name,"virtio-blk")==0)
+    {
+        flag=true;
+        rcq.se = *se;
+        rcq.file = *f;
+        rcq.version_id = version_id;
+    } 
+
+    if(flag&&failover && strcmp(((VMStateDescription *)se->vmsd)->name,"virtio-blk")==0){
+        printf("AAAA\n");
+        return vmstate_load_state(&rcq.file, (&rcq.se)->vmsd, (&rcq.se)->opaque, rcq.version_id);
+    }
+        
+    else if(failover)
+        return vmstate_load_state(f, se->vmsd, se->opaque, version_id);
+
+    return 0;
 }
+
+
 
 static void vmstate_save_old_style(QEMUFile *f, SaveStateEntry *se, QJSON *vmdesc)
 {
@@ -2979,9 +3005,9 @@ int qemu_loadvm_dev(QEMUFile *f)
     int ret = 0;
     uint32_t instance_id, version_id;
     SaveStateEntry *se;
-
     char idstr[257];
     int len;
+
 
     //printf("%s (%8d) %d K \n", __func__, ++count, f->buf_size/1024);
 
@@ -2995,6 +3021,7 @@ int qemu_loadvm_dev(QEMUFile *f)
     QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
         if (!se->state_buf)
             continue;
+
 		#ifdef ft_debug_mode_enable
         printf("%s %s\n", __func__, se->idstr);
 		#endif
@@ -3041,7 +3068,6 @@ int qemu_loadvm_dev(QEMUFile *f)
         f->buf_index = 0;
         f->buf_size = 0;
     }
-
     cpu_synchronize_all_post_init();
 out:
     return ret;
