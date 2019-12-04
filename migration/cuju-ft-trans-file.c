@@ -562,7 +562,7 @@ static void cuju_ft_trans_load(CujuQEMUFileFtTrans *s)
 	// check protocol in qemu_loadvm_state()
 	// qemu_loadvm_state(s->file, 1);
     qemu_loadvm_state(s->file, 1);
-
+    qemu_loadvm_blk_dev(s->file);
     cuju_ft_trans_clean_buf(s);
 
     qemu_mutex_lock(&cuju_load_mutex);

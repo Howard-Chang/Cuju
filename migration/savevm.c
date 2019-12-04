@@ -57,7 +57,7 @@
 #include "qemu/cutils.h"
 #include "io/channel-buffer.h"
 #include "io/channel-file.h"
-
+//#define ft_debug_mode_enable
 #ifndef ETH_P_RARP
 #define ETH_P_RARP 0x8035
 #endif
@@ -2992,7 +2992,7 @@ int qemu_loadvm_blk_dev(QEMUFile *f){
         int ret = 0;
         uint32_t instance_id, version_id;
         SaveStateEntry *se;
-
+        
         char idstr[257];
         int len;
 
@@ -3006,18 +3006,22 @@ int qemu_loadvm_blk_dev(QEMUFile *f){
             g_free(f->buf);
 
         QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
+            
             if(!se->vmsd || strcmp(((VMStateDescription *)se->vmsd)->name,"virtio-blk") != 0)
                 continue;
             if (!se->state_buf)
                 continue;
+            uint8_t *tmp=g_malloc(se->state_buf_size);
+            memcpy(tmp,se->state_buf,se->state_buf_size);
             #ifdef ft_debug_mode_enable
             printf("%s %s\n", __func__, se->idstr);
             #endif
-            f->buf = se->state_buf;
+
+            f->buf = tmp;//se->state_buf;
             f->buf_index = 0;
             f->buf_size = se->state_buf_size;
-            se->state_buf = NULL;
-            se->state_buf_size = 0;
+            //se->state_buf = NULL;
+            //se->state_buf_size = 0;
 
             section_type = qemu_get_byte(f);
 

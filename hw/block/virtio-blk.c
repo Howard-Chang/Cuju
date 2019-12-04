@@ -1123,7 +1123,7 @@ static void virtio_blk_set_status(VirtIODevice *vdev, uint8_t status)
 static void virtio_blk_save_device(VirtIODevice *vdev, QEMUFile *f)
 {
     VirtIOBlock *s = VIRTIO_BLK(vdev);
-
+    static long cnt=0;
     VirtIOBlockReq *req = s->rq;
     ReqRecord *rec;
     int i;
@@ -1137,6 +1137,8 @@ static void virtio_blk_save_device(VirtIODevice *vdev, QEMUFile *f)
             if (rec->completed[i])
                 continue;
             qemu_put_be32(f, rec->list[i]);
+            printf("cnt:%ld sector_num:%ld\n",cnt,((VirtIOBlockReq *)rec->reqs[i])->sector_num);
+            cnt++;
             qemu_put_be32(f, rec->idx[i]);
             nsend++;
         }
@@ -1147,6 +1149,8 @@ static void virtio_blk_save_device(VirtIODevice *vdev, QEMUFile *f)
         qemu_put_be32(f, s->temp_list->len);
         for (i = 0; i < s->temp_list->len; i++) {
             qemu_put_be32(f, s->temp_list->list[i]);
+            printf("cnt:%ld sector_num:%ld\n",cnt,((VirtIOBlockReq *)s->temp_list->reqs[i])->sector_num);
+            cnt++;
             qemu_put_be32(f, s->temp_list->idx[i]);
         }
     }
@@ -1197,7 +1201,7 @@ static int virtio_blk_load_blk(VirtIODevice *vdev, QEMUFile *f,
 {
     VirtIOBlock *s = VIRTIO_BLK(vdev);
     int t, i;
-
+    static long cnt=0;
     VirtIOBlockReq *rec;
 
     QTAILQ_FOREACH(rec, &RCQ_List, node) {        
@@ -1206,7 +1210,7 @@ static int virtio_blk_load_blk(VirtIODevice *vdev, QEMUFile *f,
     g_free(rec);
     QTAILQ_INIT(&RCQ_List);
 
-    /*MultiReqBuffer mrb = {
+    /* MultiReqBuffer mrb = {
         .num_reqs = 0,
     };*/
 
@@ -1235,8 +1239,8 @@ static int virtio_blk_load_blk(VirtIODevice *vdev, QEMUFile *f,
                 }
             }
 
-            /* req = qemu_get_virtqueue_element(f, sizeof(VirtIOBlockReq));
-            virtio_blk_init_request(s, virtio_get_queue(vdev, vq_idx), req);
+            qemu_get_virtqueue_element(f, sizeof(VirtIOBlockReq));
+            /* virtio_blk_init_request(s, virtio_get_queue(vdev, vq_idx), req);
             req->next = s->rq;
             s->rq = req;
 
@@ -1256,21 +1260,25 @@ static int virtio_blk_load_blk(VirtIODevice *vdev, QEMUFile *f,
                 }
             }
 
-            /* req = qemu_get_virtqueue_element(f, sizeof(VirtIOBlockReq));
-            virtio_blk_init_request(s, virtio_get_queue(vdev, vq_idx), req);
+            qemu_get_virtqueue_element(f, sizeof(VirtIOBlockReq));
+            /* virtio_blk_init_request(s, virtio_get_queue(vdev, vq_idx), req);
 
             virtio_blk_handle_request(req, &mrb, 0);
             printf("%s pending read request %p added\n", __func__, req);*/
         } else if (t == 3) {
             int len = qemu_get_be32(f);
             if (len > 0) {
-                VirtIOBlockReq *req;
+               VirtIOBlockReq *req;
                 for (i = 0; i < len; i++) {
                     int head = qemu_get_be32(f);
                     int idx = qemu_get_be32(f);
                     printf("%s handle head %d/%d: %d\n", __func__, i, len, head);
                     //blk_io_plug(s->blk);
+                    
                     req = virtio_blk_get_request_from_head(vdev, head, idx);
+                    printf("cnt:%ld sector_num:%ld\n",cnt,req->sector_num);
+                    cnt++;
+                    //virtio_blk_handle_write(req, &mrb);
                     QTAILQ_INSERT_TAIL(&RCQ_List, req, node);
                     //blk_io_unplug(s->blk);
                 }
@@ -1282,7 +1290,7 @@ static int virtio_blk_load_blk(VirtIODevice *vdev, QEMUFile *f,
             assert(0);
         }
     }
-    /*if(mrb.num_reqs)
+    /* if(mrb.num_reqs)
         virtio_blk_submit_multireq(s->blk, &mrb);*/
     return 0;
 }
