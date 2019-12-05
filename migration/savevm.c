@@ -2987,7 +2987,6 @@ void migrate_ft_trans_send_device_state_header(struct CUJUFTDev *ftdev, QEMUFile
 
 
 int qemu_loadvm_blk_dev(QEMUFile *f){
-    //if(!first_commit1){
         uint8_t section_type;
         int ret = 0;
         uint32_t instance_id, version_id;
@@ -3011,18 +3010,18 @@ int qemu_loadvm_blk_dev(QEMUFile *f){
                 continue;
             if (!se->state_buf)
                 continue;
-            uint8_t *tmp=g_malloc(se->state_buf_size);
-            memcpy(tmp,se->state_buf,se->state_buf_size);
+            //uint8_t *tmp=g_malloc(se->state_buf_size);
+            //memcpy(tmp,se->state_buf,se->state_buf_size);
             #ifdef ft_debug_mode_enable
             printf("%s %s\n", __func__, se->idstr);
             #endif
 
-            f->buf = tmp;//se->state_buf;
+            f->buf = se->state_buf;
             f->buf_index = 0;
             f->buf_size = se->state_buf_size;
             //se->state_buf = NULL;
             //se->state_buf_size = 0;
-
+            
             section_type = qemu_get_byte(f);
 
             #ifdef ft_debug_mode_enable
@@ -3055,18 +3054,17 @@ int qemu_loadvm_blk_dev(QEMUFile *f){
                         instance_id, idstr);
                 goto out;
             }
-            g_free(f->buf);
+            //g_free(f->buf);
             f->buf = g_malloc(IO_BUF_SIZE);
             f->buf_index = 0;
             f->buf_size = 0;
         }
-
+        
         cpu_synchronize_all_post_init();
 
         return 0;
     out:
         return ret;
-    //}
 }
 
 int qemu_loadvm_dev(QEMUFile *f)

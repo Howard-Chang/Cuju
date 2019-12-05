@@ -1888,13 +1888,6 @@ int virtio_load_blk(VirtIODevice *vdev, QEMUFile *f, int version_id)
     }
 
     for (i = 0; i < num; i++) {
-        /* qemu_get_be32(f);
-        if (k->has_variable_vring_alignment) {
-            qemu_get_be32(f);
-        }
-        qemu_get_be64(f);
-        qemu_get_be16s(f, &vdev->vq[i].last_avail_idx);
-*/
         vdev->vq[i].vring.num = qemu_get_be32(f);
         if (k->has_variable_vring_alignment) {
             vdev->vq[i].vring.align = qemu_get_be32(f);
