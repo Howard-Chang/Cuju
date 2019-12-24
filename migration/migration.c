@@ -3040,6 +3040,7 @@ static void migrate_timer(void *opaque)
 
     assert(kvm_shmem_collect_trackable_dirty() >= 0);
     assert(!migrate_save_device_states_to_memory_advanced(s, 0));
+    printf("%%%%%%%%%%%%%%epoch%%%%%%%%%%%%\n");
     s->virtio_blk_temp_list = virtio_blk_get_temp_list();
     kvm_shmem_trackable_dirty_reset();
     migrate_ft_trans_send_device_state_header(s->ft_dev, s->file);
